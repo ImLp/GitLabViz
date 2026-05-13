@@ -308,6 +308,7 @@ import * as d3 from 'd3'
 import { useSettingsStore } from '../composables/useSettingsStore'
 import { getScopedLabelValue, getScopedLabelValues, isScopedLabel } from '../utils/scopedLabels'
 import { getAssigneeNames, filterAssigneeKeys } from '../utils/issueFields'
+import { currentStatusOfRaw } from '../composables/useGraphDerivedState'
 
 const emit = defineEmits(['issue-state-change', 'issue-assignee-change'])
 
@@ -1561,12 +1562,13 @@ function updateGraph() {
       node.color = neutralNode
       node.displayTag = null
     } else {
-      // Status / State (with Status:: label overrides)
-      node.color = node.state === 'opened' ? '#28a745' : '#dc3545' // default
+      // Status: prefer the work-item status color (now populated for closed issues too,
+      // e.g. "Done"), so the legend matches the dropdown's status palette.
       const s = typeof node.statusLabel === 'string' ? node.statusLabel.trim() : ''
-      const sl = s.toLowerCase()
-      if (node.state === 'opened' && s) {
-        node.color = statusColors[sl] || statusPalette(s)
+      if (s) {
+        node.color = statusColors[s.toLowerCase()] || statusPalette(s)
+      } else {
+        node.color = node.state === 'opened' ? '#28a745' : '#dc3545'
       }
 
       node.displayTag = null // Don't show extra tag for state
@@ -1596,8 +1598,10 @@ function updateGraph() {
       const plain = labels.filter(l => !isScopedLabel(l))
       groupKeys = plain.length ? plain : ['_no_tag_']
     } else if (groupBy === 'state') {
+      // Prefer multi-valued Status:: scoped labels; fall back to the single effective
+      // work-item status (matches the dropdown / filter / closed→Done behavior).
       const statusKeys = getScopedLabelValues(labels, 'Status')
-      groupKeys = statusKeys.length ? statusKeys : [String(raw.state || '').toLowerCase() === 'closed' ? 'Done' : 'To do']
+      groupKeys = statusKeys.length ? statusKeys : [currentStatusOfRaw(raw)]
     } else if (groupBy === 'priority') {
       const keys = getScopedLabelValues(labels, 'Priority')
       groupKeys = keys.length ? keys : ['No Priority']
@@ -1677,8 +1681,10 @@ function updateGraph() {
       node.assigneeName = node.assigneeNames[0] || 'Unassigned'
       node.milestoneTitle = raw.milestone ? raw.milestone.title : 'No Milestone'
       node.state = raw.state
-      // Status is a scoped label (Status::... / Status:...). If multiple exist, prefer the last one.
-      node.statusLabel = getScopedLabelValue(labels, 'Status')
+      // Effective work-item status — prefers `status_display` / `work_item_status` (newer
+      // GitLab fields populated by GraphQL enrichment) over the legacy `Status::` scoped
+      // label. Closed issues without an explicit status fall back to "Done".
+      node.statusLabel = currentStatusOfRaw(raw)
       node.priority = getScopedLabelValue(labels, 'Priority') || 'No Priority'
       node.type = getScopedLabelValue(labels, 'Type') || 'No Type'
       node.weight = raw.weight != null ? String(raw.weight) : 'No Weight'
