@@ -194,7 +194,9 @@
 
       <v-autocomplete
         v-model="state.filters.selectedTypes"
-        :items="allTypes"
+        :items="typeItems"
+        item-title="title"
+        item-value="value"
         label="Type"
         multiple
         chips
@@ -208,9 +210,9 @@
         prepend-inner-icon="mdi-shape"
       >
         <template v-slot:item="{ props, item }">
-          <v-list-item v-bind="props" :title="item">
+          <v-list-item v-bind="props" :title="item.title">
             <template v-slot:prepend>
-              <v-icon icon="mdi-shape-outline" size="small" class="mr-2"></v-icon>
+              <v-icon :icon="item.value === '@none' ? 'mdi-shape-plus-outline' : 'mdi-shape-outline'" size="small" class="mr-2"></v-icon>
             </template>
           </v-list-item>
         </template>
@@ -564,6 +566,16 @@
           </template>
         </v-autocomplete>
 
+        <v-checkbox
+          v-if="state.view.groupingMode === 'assignee'"
+          v-model="state.view.cloneMultiAssignee"
+          label="Duplicate multi-assignee tickets"
+          density="compact"
+          hide-details
+          class="mt-n2"
+          :class="{ 'is-active-checkbox': !!state.view.cloneMultiAssignee }"
+        />
+
         <v-autocomplete
           v-model="state.view.viewMode"
           :items="viewModeOptions"
@@ -688,7 +700,7 @@ const statusItems = computed(() => {
   }))
 })
 
-// Prepend an "@none" sentinel so users can filter for tickets without a milestone/priority.
+// Prepend an "@none" sentinel so users can filter for tickets without a milestone/priority/type.
 const milestoneItems = computed(() => [
   { title: '(No milestone)', value: '@none' },
   ...(props.allMilestones || []).map(v => ({ title: v, value: v }))
@@ -696,6 +708,10 @@ const milestoneItems = computed(() => [
 const priorityItems = computed(() => [
   { title: '(No priority)', value: '@none' },
   ...(props.allPriorities || []).map(v => ({ title: v, value: v }))
+])
+const typeItems = computed(() => [
+  { title: '(No type)', value: '@none' },
+  ...(props.allTypes || []).map(v => ({ title: v, value: v }))
 ])
 const formatUserLabel = (name) => {
   const n = String(name || '').trim()

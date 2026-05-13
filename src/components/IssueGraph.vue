@@ -307,6 +307,7 @@ import { ref, computed, onMounted, onUnmounted, watch, toRaw, nextTick } from 'v
 import * as d3 from 'd3'
 import { useSettingsStore } from '../composables/useSettingsStore'
 import { getScopedLabelValue, getScopedLabelValues } from '../utils/scopedLabels'
+import { getAssigneeNames } from '../utils/issueFields'
 
 const emit = defineEmits(['issue-state-change', 'issue-assignee-change'])
 
@@ -559,13 +560,13 @@ function getIssueSummary (node) {
   const raw = node?._raw || {}
   const title = String(raw.title || '').trim()
   const state = String(raw.state || '').trim()
-  const assignee = raw.assignee && raw.assignee.name ? String(raw.assignee.name).trim() : ''
+  const assignees = getAssigneeNames(raw)
   const short = getIssueShorthand(node)
   const bits = []
   if (short) bits.push(short)
   if (title) bits.push(title)
   if (state) bits.push(`[${state}]`)
-  if (assignee) bits.push(`(assignee: ${assignee})`)
+  if (assignees.length) bits.push(`(assignee${assignees.length > 1 ? 's' : ''}: ${assignees.join(', ')})`)
   return bits.join(' ')
 }
 
@@ -1596,6 +1597,10 @@ function updateGraph() {
     } else if (groupBy === 'type') {
       const keys = getScopedLabelValues(labels, 'Type')
       groupKeys = keys.length ? keys : ['No Type']
+    } else if (groupBy === 'assignee') {
+      const names = getAssigneeNames(raw)
+      const all = names.length ? names : ['Unassigned']
+      groupKeys = settings.uiState.view.cloneMultiAssignee ? all : [all[0]]
     } else if (groupBy && groupBy.startsWith('scoped:')) {
       const prefix = groupBy.substring('scoped:'.length)
       const keys = getScopedLabelValues(labels, prefix)
@@ -1659,7 +1664,8 @@ function updateGraph() {
       node.tags = labels
       node.tag = labels.length > 0 ? labels[0] : '_no_tag_'
       node.authorName = raw.author ? raw.author.name : 'Unknown'
-      node.assigneeName = raw.assignee ? raw.assignee.name : 'Unassigned'
+      node.assigneeNames = getAssigneeNames(raw)
+      node.assigneeName = node.assigneeNames[0] || 'Unassigned'
       node.milestoneTitle = raw.milestone ? raw.milestone.title : 'No Milestone'
       node.state = raw.state
       // Status is a scoped label (Status::... / Status:...). If multiple exist, prefer the last one.
@@ -1696,6 +1702,7 @@ function updateGraph() {
       else if (groupBy === 'state') node.statusLabel = groupKey
       else if (groupBy === 'priority') node.priority = groupKey
       else if (groupBy === 'type') node.type = groupKey
+      else if (groupBy === 'assignee') node.assigneeName = groupKey
 
       applyColor(node)
       return node

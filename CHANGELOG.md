@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.29] - 2026-05-13
+- Type filter now has a "(No type)" entry — same fix as priority/milestone in 0.3.27 (tickets without a Type scoped label were unfindable).
+- Audited the rest of the filters: Status defaults to "To do" when missing so every ticket has a value; Author/Participants are always present; Subscription / MR / Due / Spent / Budget / Estimate / Task already expose explicit "none" options. Labels (Include) intentionally left as-is (different multi-value semantics).
+
+## [0.3.28] - 2026-05-13
+- Multi-assignee tickets are now treated correctly across the app (filter fix in 0.3.26 was only half the story):
+  - Grouping by assignee duplicates a multi-assignee ticket into each assignee's group/cluster (same cloning pattern already used for tag / priority / type / scoped labels).
+  - Color mode "assignee" colors each clone by its own assignee.
+  - Legend / group counts include the ticket in every assignee's bucket.
+  - Display label and copy summary list all assignees, not just the first.
+  - New `Duplicate multi-assignee tickets` toggle in the sidebar (shown only when grouping by assignee) — defaults on; disable to fall back to the legacy single-clone behavior.
+- Shared helper `src/utils/issueFields.js#getAssigneeNames` used by both `useGraphDerivedState` and `IssueGraph` (no more duplicated singular/plural fallback logic).
+
 ## [0.3.27] - 2026-05-13
 - Fix #16648 (no way to filter tickets with no priority/milestone): Milestone and Priority filters now have a "(No milestone)" / "(No priority)" entry (`@none` sentinel, same pattern as Unassigned) so tickets without one can be found.
 

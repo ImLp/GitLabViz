@@ -117,6 +117,9 @@ export const defaultSettings = () => ({
       groupingMode: 'none',
       linkMode: 'none',
       hideUnlinked: true,
+      // When grouping/coloring by assignee, duplicate multi-assignee tickets across each assignee's group.
+      // Off = ticket appears only in the first assignee's group/color (legacy/cheaper).
+      cloneMultiAssignee: true,
       legendSort: 'name', // 'name' | 'count'
       showGroupLabels: true,
       dueSoonDays: 7,

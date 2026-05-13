@@ -1,5 +1,6 @@
 import { computed, watch } from 'vue'
 import { getScopedLabelValue, getScopedLabelValues } from '../utils/scopedLabels'
+import { getAssigneeNames } from '../utils/issueFields'
 
 export function useGraphDerivedState ({ settings, nodes, edges }) {
   const allLabels = computed(() => {
@@ -42,16 +43,6 @@ export function useGraphDerivedState ({ settings, nodes, edges }) {
     })
     return Array.from(authors).sort()
   })
-
-  // Multi-assignee aware: prefer the `assignees` array (source of truth in GitLab),
-  // fall back to the singular `assignee` (deprecated, but kept for old cached data / mocks).
-  const getAssigneeNames = (raw) => {
-    if (!raw) return []
-    if (Array.isArray(raw.assignees) && raw.assignees.length) {
-      return raw.assignees.map(a => a?.name).filter(Boolean)
-    }
-    return raw.assignee?.name ? [raw.assignee.name] : []
-  }
 
   const allAssignees = computed(() => {
     const assignees = new Set()
@@ -269,10 +260,13 @@ export function useGraphDerivedState ({ settings, nodes, edges }) {
         priorityMatch = (!!priority && wantNames.includes(priority)) || (wantsNone && !priority)
       }
 
-      // 5. Type Filter
+      // 5. Type Filter ('@none' matches tickets without a Type scoped label)
       let typeMatch = true
       if ((settings.uiState.filters.selectedTypes?.length || 0) > 0) {
-        typeMatch = type && settings.uiState.filters.selectedTypes.includes(type)
+        const want = settings.uiState.filters.selectedTypes
+        const wantsNone = want.includes('@none')
+        const wantNames = want.filter(v => v !== '@none')
+        typeMatch = (!!type && wantNames.includes(type)) || (wantsNone && !type)
       }
 
       // 5b. Merge Requests Filter
@@ -501,39 +495,45 @@ export function useGraphDerivedState ({ settings, nodes, edges }) {
       if (groupingMode === 'none') return {} // No groups to link
 
       // 1. Group nodes
+      const cloneMultiAssignee = !!settings.uiState.view.cloneMultiAssignee
       const groups = {}
       Object.values(filteredNodes.value).forEach(node => {
-        let key = 'default'
+        let keys = ['default']
         const n = node._raw
         if (node.type === 'svn_commit') {
           // Special grouping for SVN?
-          if (groupingMode === 'author') key = n.author || 'Unknown'
-          else key = 'SVN Commits' // Default for other groupings
+          keys = [groupingMode === 'author' ? (n.author || 'Unknown') : 'SVN Commits']
         } else {
-          if (groupingMode === 'tag') key = node.tag || '_no_tag_'
-          else if (groupingMode === 'author') key = n.author ? n.author.name : 'Unknown'
-          else if (groupingMode === 'state') key = n.state
-          else if (groupingMode === 'assignee') key = n.assignee ? n.assignee.name : 'Unassigned'
-          else if (groupingMode === 'milestone') key = n.milestone ? n.milestone.title : 'No Milestone'
-          else if (groupingMode === 'priority') key = getScopedLabelValue(n.labels, 'Priority') || 'No Priority'
-          else if (groupingMode === 'type') key = getScopedLabelValue(n.labels, 'Type') || 'No Type'
+          if (groupingMode === 'tag') keys = [node.tag || '_no_tag_']
+          else if (groupingMode === 'author') keys = [n.author ? n.author.name : 'Unknown']
+          else if (groupingMode === 'state') keys = [n.state]
+          else if (groupingMode === 'assignee') {
+            const names = getAssigneeNames(n)
+            if (!names.length) keys = ['Unassigned']
+            else keys = cloneMultiAssignee ? names : [names[0]]
+          }
+          else if (groupingMode === 'milestone') keys = [n.milestone ? n.milestone.title : 'No Milestone']
+          else if (groupingMode === 'priority') keys = [getScopedLabelValue(n.labels, 'Priority') || 'No Priority']
+          else if (groupingMode === 'type') keys = [getScopedLabelValue(n.labels, 'Type') || 'No Type']
           else if (groupingMode === 'epic') {
             const parentType = String(n.parent?.work_item_type || '').trim().toLowerCase()
-            key = (
+            keys = [(
               (n.epic ? n.epic.title : null) ||
               (parentType === 'epic' ? n.parent?.title : null) ||
               (n.epic_iid != null ? `Epic #${n.epic_iid}` : null) ||
               getScopedLabelValue(n.labels, 'Epic') ||
               'No Epic'
-            )
+            )]
           } else if (String(groupingMode || '').startsWith('scoped:')) {
             const prefix = String(groupingMode || '').substring('scoped:'.length)
-            key = getScopedLabelValue(n.labels, prefix) || `No ${prefix}`
+            keys = [getScopedLabelValue(n.labels, prefix) || `No ${prefix}`]
           }
         }
 
-        if (!groups[key]) groups[key] = []
-        groups[key].push(node.id)
+        for (const key of keys) {
+          if (!groups[key]) groups[key] = []
+          groups[key].push(node.id)
+        }
       })
 
       // 2. Create chain links within groups to keep them together visually
@@ -639,7 +639,9 @@ export function useGraphDerivedState ({ settings, nodes, edges }) {
       } else if (mode === 'author') {
         keys = [raw.author ? raw.author.name : 'Unknown']
       } else if (mode === 'assignee') {
-        keys = [raw.assignee ? raw.assignee.name : 'Unassigned']
+        const names = getAssigneeNames(raw)
+        if (!names.length) keys = ['Unassigned']
+        else keys = settings.uiState.view.cloneMultiAssignee ? names : [names[0]]
       } else if (mode === 'milestone') {
         keys = [raw.milestone ? raw.milestone.title : 'No Milestone']
       } else if (mode === 'weight') {
