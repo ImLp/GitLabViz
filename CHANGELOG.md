@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.3.33] - 2026-05-13
+- Status filter: always lists all 7 standard GitLab work-item statuses (`To do`, `In progress`, `Ready for Review`, `On Hold/Blocked`, `Done`, `Won't do`, `Duplicate`) plus any project-specific custom statuses from the loaded data. Previously only statuses present in currently-loaded issues were filterable.
+- Group / Color by "Label" now excludes scoped labels (e.g. `Priority::High`, `Type::Bug`, `Component::core engine`) — those have their own dedicated grouping modes. New `isScopedLabel()` helper in `utils/scopedLabels.js`.
+- URL aliases the internal value `tag` to `label` for `color=` and `group=` (UI already calls it "Label"). Decoding accepts both `label` and `tag` so existing URLs still work.
+- 43 new unit tests for the URL share codec covering encode/decode roundtrip, percent-encoding, unicode/emoji, validation, warnings, and edge cases (legacy `?`/`&` rejection, malformed segments, invalid enums, etc.).
+
 ## [0.3.32] - 2026-05-13
 - Fix: when grouping by assignee + filtering by specific assignees, multi-assignee tickets were spawning clones in EVERY co-assignee's group (incl. people not in the filter). Clones are now intersected with the active assignee filter (handles `@me`, `@unassigned`, `@deactivated` correctly).
 - URL share parser: drops legacy `?` / `&` syntax (no backward compatibility) — clearly errors out if such a URL is opened.

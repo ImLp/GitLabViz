@@ -1,5 +1,5 @@
 import { computed, watch } from 'vue'
-import { getScopedLabelValue, getScopedLabelValues } from '../utils/scopedLabels'
+import { getScopedLabelValue, getScopedLabelValues, isScopedLabel } from '../utils/scopedLabels'
 import { getAssigneeNames, resolveAssigneeFilter, filterAssigneeKeys } from '../utils/issueFields'
 
 export function useGraphDerivedState ({ settings, nodes, edges }) {
@@ -13,8 +13,13 @@ export function useGraphDerivedState ({ settings, nodes, edges }) {
     return Array.from(labels).sort()
   })
 
+  // GitLab's default work-item statuses. Always shown in the filter dropdown so users can
+  // filter for any standard status even if no currently-loaded issue is in that state.
+  // Project-specific custom statuses (e.g. "Backlog") are added on top from the loaded data.
+  const STANDARD_STATUSES = ['To do', 'In progress', 'Ready for Review', 'On Hold/Blocked', 'Done', "Won't do", 'Duplicate']
+
   const allStatuses = computed(() => {
-    const statuses = new Set()
+    const statuses = new Set(STANDARD_STATUSES)
     Object.values(nodes).forEach(node => {
       const raw = node?._raw || {}
       let s = (typeof raw.status_display === 'string' && raw.status_display.trim()) ? raw.status_display.trim() : ''
@@ -24,15 +29,14 @@ export function useGraphDerivedState ({ settings, nodes, edges }) {
       statuses.add(s)
     })
 
-    const baseOrder = ['To do', 'In progress', 'Ready for Review', 'On Hold/Blocked', 'Done', 'Won\'t do', 'Duplicate']
     const list = Array.from(statuses)
     list.sort((a, b) => {
-      const ia = baseOrder.indexOf(a)
-      const ib = baseOrder.indexOf(b)
+      const ia = STANDARD_STATUSES.indexOf(a)
+      const ib = STANDARD_STATUSES.indexOf(b)
       if (ia !== -1 || ib !== -1) return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib)
       return String(a).localeCompare(String(b))
     })
-    return list.length ? list : baseOrder
+    return list
   })
 
   const allAuthors = computed(() => {
@@ -627,7 +631,8 @@ export function useGraphDerivedState ({ settings, nodes, edges }) {
 
       let keys = null
       if (mode === 'tag') {
-        keys = labels.length ? labels : ['_no_tag_']
+        const plain = labels.filter(l => !isScopedLabel(l))
+        keys = plain.length ? plain : ['_no_tag_']
       } else if (mode === 'state') {
         const statusKeys = getScopedLabelValues(labels, 'Status')
         keys = statusKeys.length ? statusKeys : [String(raw.state || '').toLowerCase() === 'closed' ? 'Done' : 'To do']

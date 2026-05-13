@@ -306,7 +306,7 @@
 import { ref, computed, onMounted, onUnmounted, watch, toRaw, nextTick } from 'vue'
 import * as d3 from 'd3'
 import { useSettingsStore } from '../composables/useSettingsStore'
-import { getScopedLabelValue, getScopedLabelValues } from '../utils/scopedLabels'
+import { getScopedLabelValue, getScopedLabelValues, isScopedLabel } from '../utils/scopedLabels'
 import { getAssigneeNames, filterAssigneeKeys } from '../utils/issueFields'
 
 const emit = defineEmits(['issue-state-change', 'issue-assignee-change'])
@@ -1591,7 +1591,10 @@ function updateGraph() {
     let groupKeys = null
 
     if (groupBy === 'tag') {
-      groupKeys = labels.length ? labels : ['_no_tag_']
+      // "Label" grouping = real (non-scoped) labels only. Scoped labels like Priority::High have
+      // their own dedicated grouping modes.
+      const plain = labels.filter(l => !isScopedLabel(l))
+      groupKeys = plain.length ? plain : ['_no_tag_']
     } else if (groupBy === 'state') {
       const statusKeys = getScopedLabelValues(labels, 'Status')
       groupKeys = statusKeys.length ? statusKeys : [String(raw.state || '').toLowerCase() === 'closed' ? 'Done' : 'To do']
@@ -1666,7 +1669,9 @@ function updateGraph() {
 
       // Extract metadata
       node.tags = labels
-      node.tag = labels.length > 0 ? labels[0] : '_no_tag_'
+      // For color-by-label / single-label use, prefer the first non-scoped label.
+      const firstPlain = labels.find(l => !isScopedLabel(l))
+      node.tag = firstPlain || '_no_tag_'
       node.authorName = raw.author ? raw.author.name : 'Unknown'
       node.assigneeNames = getAssigneeNames(raw)
       node.assigneeName = node.assigneeNames[0] || 'Unassigned'

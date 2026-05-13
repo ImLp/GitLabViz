@@ -1,4 +1,4 @@
-import { getScopedLabelValue, getScopedLabelValues } from './scopedLabels'
+import { getScopedLabelValue, getScopedLabelValues, isScopedLabel } from './scopedLabels'
 
 describe('scopedLabels', () => {
   it('extracts scoped label value for both "::" and ":" (prefers last match)', () => {
@@ -28,6 +28,19 @@ describe('scopedLabels', () => {
     expect(getScopedLabelValue(null, 'Component')).toBe(null)
     expect(getScopedLabelValue([], 'Component')).toBe(null)
     expect(getScopedLabelValue(['Component:foo'], '')).toBe(null)
+  })
+
+  it('isScopedLabel recognises Prefix::Value / Prefix:Value vs plain labels', () => {
+    expect(isScopedLabel('Priority::High')).toBe(true)
+    expect(isScopedLabel('Type:Bug')).toBe(true)
+    expect(isScopedLabel('Component::core engine')).toBe(true)
+    expect(isScopedLabel('Bug')).toBe(false)
+    expect(isScopedLabel('Frontend')).toBe(false)
+    expect(isScopedLabel(':foo')).toBe(false)
+    expect(isScopedLabel('foo:')).toBe(false)
+    expect(isScopedLabel('')).toBe(false)
+    expect(isScopedLabel(null)).toBe(false)
+    expect(isScopedLabel(undefined)).toBe(false)
   })
 
 })

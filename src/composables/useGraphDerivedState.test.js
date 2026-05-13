@@ -113,18 +113,29 @@ describe('useGraphDerivedState', () => {
     expect(d.allAssignees.value).toEqual(['Bob'])
   })
 
-  it('derives status list from status_display/work_item_status/scoped label', () => {
+  it('always includes the standard GitLab work-item statuses plus any project-specific ones from data', () => {
     const settings = baseSettings()
     const nodes = reactive({
       '1': { id: '1', type: 'gitlab_issue', _raw: { state: 'opened', status_display: 'On Hold/Blocked', labels: [] } },
       '2': { id: '2', type: 'gitlab_issue', _raw: { state: 'opened', work_item_status: 'In progress', labels: [] } },
       '3': { id: '3', type: 'gitlab_issue', _raw: { state: 'opened', labels: ['Status::Ready for Review'] } },
-      '4': { id: '4', type: 'gitlab_issue', _raw: { state: 'closed', labels: [] } }
+      '4': { id: '4', type: 'gitlab_issue', _raw: { state: 'opened', status_display: 'Backlog', labels: [] } },
+      '5': { id: '5', type: 'gitlab_issue', _raw: { state: 'closed', labels: [] } }
     })
     const edges = reactive({})
 
     const d = useGraphDerivedState({ settings, nodes, edges })
-    expect(d.allStatuses.value).toEqual(['In progress', 'Ready for Review', 'On Hold/Blocked', 'Done'])
+    // Standard statuses first (in canonical order), then custom ones (alphabetical).
+    expect(d.allStatuses.value).toEqual([
+      'To do', 'In progress', 'Ready for Review', 'On Hold/Blocked', 'Done', "Won't do", 'Duplicate', 'Backlog'
+    ])
+  })
+
+  it('still returns the standard statuses when no issues are loaded', () => {
+    const d = useGraphDerivedState({ settings: baseSettings(), nodes: reactive({}), edges: reactive({}) })
+    expect(d.allStatuses.value).toEqual([
+      'To do', 'In progress', 'Ready for Review', 'On Hold/Blocked', 'Done', "Won't do", 'Duplicate'
+    ])
   })
 
   it('enables hideUnlinked when switching into dependency mode', async () => {

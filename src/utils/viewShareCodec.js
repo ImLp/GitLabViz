@@ -32,6 +32,15 @@ const FILTER_ARRAYS = new Set([
 const VIEW_MAP = { color: 'colorMode', group: 'grouping', links: 'linkMode', dueSoon: 'dueSoonDays' }
 const VIEW_DEFAULTS = { colorMode: 'state', grouping: 'none', linkMode: 'none', dueSoonDays: 7 }
 
+// Public URL aliases for internal value names that read awkwardly.
+// Internally we use `tag` for "by label" (legacy); the URL exposes `label` instead.
+const URL_ALIAS = {
+  color: { in: { label: 'tag' }, out: { tag: 'label' } },
+  group: { in: { label: 'tag' }, out: { tag: 'label' } }
+}
+const toInternal = (urlKey, v) => URL_ALIAS[urlKey]?.in?.[v] ?? v
+const toPublic = (urlKey, v) => URL_ALIAS[urlKey]?.out?.[v] ?? v
+
 // Enum value whitelist for view fields. Helps us surface typos / corrupt URLs.
 // Keep in sync with linkModeOptions / viewModeOptions / groupingModeOptions in App.vue.
 const COLOR_VALUES = new Set([
@@ -101,7 +110,7 @@ export function encodeView (snapshot) {
     const v = view[srcKey]
     if (isEmpty(v)) continue
     if (VIEW_DEFAULTS[srcKey] !== undefined && v === VIEW_DEFAULTS[srcKey]) continue
-    collect(parts, [urlKey, encVal(v)])
+    collect(parts, [urlKey, encVal(toPublic(urlKey, v))])
   }
 
   return parts.join('/')
@@ -170,12 +179,15 @@ export function decodeView (path) {
       const n = Number(v)
       if (!Number.isFinite(n)) { warnings.push(`Invalid ${urlKey}="${v}" — expected number.`); continue }
       v = n
-    } else if (srcKey === 'colorMode' && !COLOR_VALUES.has(v)) {
-      warnings.push(`Invalid color="${v}" — ignored.`); continue
-    } else if (srcKey === 'grouping' && !GROUP_VALUES.has(v) && !String(v).startsWith('scoped:')) {
-      warnings.push(`Invalid group="${v}" — ignored.`); continue
-    } else if (srcKey === 'linkMode' && !LINK_VALUES.has(v)) {
-      warnings.push(`Invalid links="${v}" — ignored.`); continue
+    } else {
+      v = toInternal(urlKey, v)
+      if (srcKey === 'colorMode' && !COLOR_VALUES.has(v)) {
+        warnings.push(`Invalid color="${v}" — ignored.`); continue
+      } else if (srcKey === 'grouping' && !GROUP_VALUES.has(v) && !String(v).startsWith('scoped:')) {
+        warnings.push(`Invalid group="${v}" — ignored.`); continue
+      } else if (srcKey === 'linkMode' && !LINK_VALUES.has(v)) {
+        warnings.push(`Invalid links="${v}" — ignored.`); continue
+      }
     }
     view[srcKey] = v
   }

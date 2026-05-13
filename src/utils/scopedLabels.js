@@ -1,3 +1,11 @@
+// A "scoped label" follows the GitLab convention "Prefix::Value" or "Prefix:Value"
+// (e.g. Priority::High, Type:Bug). Plain labels like "Bug" or "Frontend" are not scoped.
+export function isScopedLabel (l) {
+  if (typeof l !== 'string') return false
+  const i = l.indexOf(':')
+  return i > 0 && i < l.length - 1
+}
+
 export function getScopedLabelValues (labels, prefix) {
   if (!Array.isArray(labels)) return []
   const p = String(prefix || '').trim()

@@ -36,6 +36,11 @@ describe('viewShareCodec - encode', () => {
     })).toBe('label=Bug/due=overdue/color=priority/group=author')
   })
 
+  it('aliases the internal "tag" value to "label" in color/group (UI is named "Label" already)', () => {
+    expect(encodeView({ view: { grouping: 'tag', colorMode: 'tag' } }))
+      .toBe('color=label/group=label')
+  })
+
   it('joins array values with commas (no percent-encoding of the separator)', () => {
     expect(encodeView({ filters: { labels: ['Bug', 'Critical', 'Frontend'] } }))
       .toBe('label=Bug,Critical,Frontend')
@@ -206,6 +211,19 @@ describe('viewShareCodec - decode: validation + warnings', () => {
   it('accepts scoped:<Prefix> grouping values', () => {
     const { snapshot, warnings } = decodeView('group=scoped:Component')
     expect(snapshot).toEqual({ view: { grouping: 'scoped:Component' } })
+    expect(warnings).toEqual([])
+  })
+
+  it('decodes "label" alias back to internal "tag" for color/group', () => {
+    const { snapshot, warnings } = decodeView('color=label/group=label')
+    expect(snapshot).toEqual({ view: { colorMode: 'tag', grouping: 'tag' } })
+    expect(warnings).toEqual([])
+  })
+
+  it('still accepts the raw internal value "tag" for backward compat', () => {
+    // Old links / hand-written URLs using `tag` directly should still work.
+    const { snapshot, warnings } = decodeView('color=tag/group=tag')
+    expect(snapshot).toEqual({ view: { colorMode: 'tag', grouping: 'tag' } })
     expect(warnings).toEqual([])
   })
 
