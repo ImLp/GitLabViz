@@ -11,7 +11,7 @@ export const defaultSettings = () => ({
     svnUsername: '',
     svnPassword: '',
     svnRepos: [{ id: 'default', url: '', enabled: true }],
-    gitlabClosedDays: 7,
+    gitlabClosedDays: 180,
 
     // ChatTools (Mattermost) assimilation
     mattermostUrl: '',
@@ -97,7 +97,7 @@ export const defaultSettings = () => ({
       modes: {
         target: true, burnup: true, blockers: true, wipStale: true,
         today: true, velocity: true,
-        heatmapCreated: true, heatmapClosed: true, heatmapAll: true,
+        heatmap: true,
         workload: true, priority: true,
         status: true, type: true, hotLabels: true,
         milestones: true, aging: true,
@@ -112,6 +112,7 @@ export const defaultSettings = () => ({
         type:       { showNoType: false },
         milestones: { topN: 8 },
         burnup:     { windowDays: 90 },
+        heatmap:    { days: 365 },
         aging:      {},
         activity:   { limit: 22, includeUpdates: true },
         hotLabels:  { hours: 24, topN: 15, includeScoped: false },
@@ -197,7 +198,9 @@ export const defaultSettings = () => ({
     gitlabTokenScopes: null, // null = unknown/unverified, otherwise array of scopes (e.g. ['read_api', 'api'])
     gitlabTokenExpiresAt: null, // ISO date string from /personal_access_tokens/self, or null
     gitlabCanWrite: false, // derived from scopes (true when 'api' is present)
-    lastUpdated: null
+    lastUpdated: null,
+    lastSyncClosedDays: null, // the gitlabClosedDays value that was used for the most recent successful sync — change ⇒ force full
+    closedDaysDefaultBumped: false // one-time migration flag (0.11.3) — bumps users still on the 7d default to 180d
   }
 })
 

@@ -877,6 +877,16 @@
                     density="compact" variant="outlined"
                   />
                 </v-col>
+                <v-col v-if="m.id === 'heatmap'" cols="6" sm="3">
+                  <v-text-field
+                    v-model.number="settings.uiState.kiosk.modeConfig.heatmap.days"
+                    type="number" min="60" max="730"
+                    label="Window (days)"
+                    hint="Shared by all three heatmap rows."
+                    persistent-hint
+                    density="compact" variant="outlined"
+                  />
+                </v-col>
                 <v-col v-if="m.id === 'activity'" cols="6" sm="3">
                   <v-text-field
                     v-model.number="settings.uiState.kiosk.modeConfig.activity.limit"
@@ -1203,6 +1213,7 @@ const kioskAllModes = [
   { id: 'wipStale',   label: 'Stale WIP',                icon: 'mdi-progress-alert',       description: 'Tickets in "In progress" status that have not been updated in N days.' },
   { id: 'today',      label: "Today's pulse",            icon: 'mdi-pulse',                description: 'Opened / closed / updated / totals.' },
   { id: 'velocity',   label: 'Velocity',                 icon: 'mdi-trending-up',          description: 'Created vs closed per day.' },
+  { id: 'heatmap',    label: 'Activity heatmap',         icon: 'mdi-view-grid',            description: 'GitHub-style activity grid — three stacked rows for created (green), closed (blue), and all activity (purple).' },
   { id: 'workload',   label: 'Workload by assignee',     icon: 'mdi-account-multiple',     description: 'Top assignees by active open count.' },
   { id: 'priority',   label: 'Priority overview',        icon: 'mdi-alert-circle-outline', description: 'Open per Priority:: label.' },
   { id: 'status',     label: 'Status breakdown',         icon: 'mdi-list-status',          description: 'Open per work-item status.' },
@@ -1212,9 +1223,9 @@ const kioskAllModes = [
   { id: 'aging',      label: 'Aging buckets',            icon: 'mdi-timer-sand',           description: 'Distribution of open ticket ages.' },
   { id: 'activity',   label: 'Recent activity',          icon: 'mdi-history',              description: 'Recent opens / closes / updates with actor.' },
   { id: 'closed',     label: 'Recently closed',          icon: 'mdi-party-popper',         description: 'Celebration view — tickets closed in the last N hours.' },
-  { id: 'risks',      label: 'Overdue / stale / unassigned', icon: 'mdi-alert-octagon-outline', description: 'Tickets needing attention.' }
+  { id: 'risks',      label: 'Ticket health',            icon: 'mdi-stethoscope',          description: 'Problem dashboard — overdue / stale / unassigned / no priority / no due date / blocked, plus the worst offenders.' }
 ]
-const kioskHasOptions = (id) => ['velocity', 'workload', 'priority', 'status', 'type', 'hotLabels', 'milestones', 'burnup', 'activity', 'blockers', 'wipStale', 'closed', 'risks'].includes(id)
+const kioskHasOptions = (id) => ['velocity', 'workload', 'priority', 'status', 'type', 'hotLabels', 'milestones', 'burnup', 'activity', 'blockers', 'wipStale', 'closed', 'risks', 'heatmap'].includes(id)
 const kioskPriorityBuckets = [
   { value: 'blocking', label: 'Blocking / Critical' },
   { value: 'high',     label: 'High' },

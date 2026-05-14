@@ -39,9 +39,9 @@ export function useDataLoader ({
   createMockIssuesGraph
 }) {
   // Some config changes (notably gitlabClosedDays) widen the fetch window such that the
-  // incremental sync would skip the newly-included history. Watch them and mark the next
-  // load as "force full" so saving the config or hitting Refresh picks up the new range
-  // without the user needing Ctrl+Refresh.
+  // incremental sync would skip the newly-included history. The primary mechanism is
+  // comparing the current setting to `settings.meta.lastSyncClosedDays` inside loadData;
+  // this watcher is a belt-and-braces flag for changes that happen mid-session.
   let pendingFullSync = false
   watch(() => settings.config.gitlabClosedDays, (newVal, oldVal) => {
     if (oldVal === undefined || newVal === oldVal) return
@@ -193,6 +193,13 @@ export function useDataLoader ({
     const only = opts.only || 'both' // 'gitlab' | 'svn' | 'mattermost' | 'both'
     let forceFull = !!opts.forceFull
     if (pendingFullSync) { forceFull = true; pendingFullSync = false }
+    // If the closed-days window has changed since the last successful sync, the cached
+    // cursor would miss the newly-included closed history — force a full re-sync.
+    const curClosedDays = Number(settings.config.gitlabClosedDays) || 0
+    const lastSyncClosedDays = settings.meta && settings.meta.lastSyncClosedDays
+    if (typeof lastSyncClosedDays === 'number' && lastSyncClosedDays !== curClosedDays) {
+      forceFull = true
+    }
     const doGitLab = (only === 'both' || only === 'gitlab') && settings.config.enableGitLab
     const doSvn = canUseSvn.value && (only === 'both' || only === 'svn') && settings.config.enableSvn
     const doMattermost = isElectron.value && (only === 'both' || only === 'mattermost') && !!settings.config.mattermostUrl && !!settings.config.mattermostToken
@@ -692,6 +699,10 @@ export function useDataLoader ({
         const now = Date.now()
         lastUpdated.value = now
         settings.meta.lastUpdated = now
+        // Remember the closed-days window we just synced under, so a later change
+        // to `gitlabClosedDays` is detected at the top of loadData and triggers a
+        // full re-sync without the user needing Ctrl+Refresh.
+        settings.meta.lastSyncClosedDays = Number(settings.config.gitlabClosedDays) || 0
       } catch (e) {
         console.error('Failed to save to cache:', e)
         error.value = `Failed to save to cache: ${e?.message || String(e)}`

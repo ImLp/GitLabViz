@@ -191,14 +191,19 @@
 
       <!-- Milestone burnup: cumulative scope vs closed over lifetime -->
       <section v-else-if="currentMode === 'burnup'" class="k-burnup-section">
-        <div v-if="!targetBurnup" class="k-empty">
-          {{ targetMilestone ? 'No tickets in this milestone yet.' : 'No target milestone set (Configuration → Kiosk).' }}
+        <div v-if="!targetMilestone" class="k-empty">
+          <v-icon icon="mdi-flag-outline" size="48" />
+          <div>No target milestone set (Configuration → Kiosk).</div>
+        </div>
+        <div v-else-if="targetData && targetData._ticketTimes && targetData._ticketTimes.length === 0" class="k-empty">
+          <v-icon icon="mdi-tray" size="48" />
+          <div>No tickets in this milestone yet.</div>
         </div>
         <template v-else>
           <div class="k-section-title k-burnup-title">
             <v-icon icon="mdi-chart-areaspline" />
             {{ targetMilestone }} · burnup
-            <span class="k-section-sub">
+            <span v-if="targetBurnup" class="k-section-sub">
               {{ targetBurnup.startLabel }} → {{ targetBurnup.endLabel }} ({{ targetBurnup.windowDays }}d window)
               <span v-if="targetBurnup.scopeBaseline || targetBurnup.closedBaseline">
                 · baseline {{ targetBurnup.closedBaseline }} / {{ targetBurnup.scopeBaseline }}
@@ -208,8 +213,9 @@
           <svg
             ref="burnupSvgRef"
             class="k-burnup-svg"
-            :viewBox="`0 0 ${targetBurnup.vbWidth} ${targetBurnup.vbHeight}`"
+            :viewBox="targetBurnup ? `0 0 ${targetBurnup.vbWidth} ${targetBurnup.vbHeight}` : '0 0 800 320'"
           >
+            <template v-if="targetBurnup">
             <!-- horizontal grid -->
             <line
               v-for="(t, i) in targetBurnup.yTicks" :key="'yg' + i"
@@ -238,6 +244,38 @@
               :height="targetBurnup.innerBottom - targetBurnup.innerTop"
               fill="rgba(0, 0, 0, 0.35)"
             />
+
+            <!-- "Incomplete closed history" zone — left of the gitlabClosedDays cutoff.
+                 Hatched + dim so users know the closed line in that range is unreliable. -->
+            <pattern id="k-burnup-hatch" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">
+              <rect width="8" height="8" fill="rgba(0, 0, 0, 0.25)" />
+              <line x1="0" y1="0" x2="0" y2="8" stroke="rgba(255, 179, 0, 0.35)" stroke-width="2" />
+            </pattern>
+            <rect
+              v-if="targetBurnup.closedCutoffX != null"
+              :x="targetBurnup.innerLeft"
+              :y="targetBurnup.innerTop"
+              :width="targetBurnup.closedCutoffX - targetBurnup.innerLeft"
+              :height="targetBurnup.innerBottom - targetBurnup.innerTop"
+              fill="url(#k-burnup-hatch)"
+            />
+            <g v-if="targetBurnup.closedCutoffX != null">
+              <line
+                :x1="targetBurnup.closedCutoffX" :x2="targetBurnup.closedCutoffX"
+                :y1="targetBurnup.innerTop" :y2="targetBurnup.innerBottom"
+                stroke="#ffb300" stroke-width="2" stroke-dasharray="6 4"
+              />
+              <rect
+                :x="targetBurnup.closedCutoffX - 78" :y="targetBurnup.innerTop + 56"
+                width="156" height="22" rx="4" ry="4"
+                fill="rgba(255, 179, 0, 0.9)"
+              />
+              <text
+                :x="targetBurnup.closedCutoffX" :y="targetBurnup.innerTop + 71"
+                text-anchor="middle" font-size="13" font-weight="700"
+                fill="#212121"
+              >Closed data starts here</text>
+            </g>
 
             <!-- ideal burn guideline (dotted) — from (start, baseline-closed) to (due, scope) -->
             <path
@@ -297,12 +335,22 @@
               text-anchor="middle" font-size="16" fill="rgba(200,200,200,0.85)"
               font-weight="600"
             >{{ t.label }}</text>
+            </template>
           </svg>
-          <div class="k-burnup-legend">
+          <div v-if="targetBurnup" class="k-burnup-legend">
             <span><i class="k-swatch" style="background: #5c6bc0;" />Scope — {{ fmtNum(targetBurnup.totalScope) }}</span>
             <span><i class="k-swatch" style="background: #66bb6a;" />Closed — {{ fmtNum(targetBurnup.totalClosed) }}</span>
             <span><i class="k-swatch" :style="{ background: targetBurnup.onTrack ? 'rgba(255, 179, 0, 0.6)' : 'rgba(239, 83, 80, 0.65)' }" />Remaining (risk zone)</span>
             <span v-if="targetBurnup.idealPath"><i class="k-swatch k-swatch-dotted" />Ideal burn</span>
+            <span v-if="!targetBurnup.closedHistoryComplete" class="k-burnup-warn-data">
+              <v-icon icon="mdi-alert-outline" size="x-small" />
+              <template v-if="targetBurnup.closedDays === 0">
+                Closed data not loaded — set "Include closed issues" in Configuration → GitLab.
+              </template>
+              <template v-else>
+                Closed data only available since {{ targetBurnup.closedCutoffLabel }} (last {{ targetBurnup.closedDays }}d) — earlier portion may be incomplete.
+              </template>
+            </span>
             <span class="k-legend-spacer" />
             <span :class="targetBurnup.onTrack ? '' : 'k-burnup-warn'">
               {{ targetBurnup.onTrack ? 'Tracking ideal burn' : 'Behind ideal burn' }}
@@ -435,6 +483,67 @@
           <span><i class="k-swatch k-vel-closed" /> Closed</span>
           <span class="k-legend-spacer" />
           <span>Σ created {{ fmtNum(velocity.totalCreated) }} · Σ closed {{ fmtNum(velocity.totalClosed) }}</span>
+        </div>
+      </section>
+
+      <!-- Activity heatmap (GitHub contribution-graph style; 3 rows stacked: created / closed / all) -->
+      <section
+        v-else-if="currentMode === 'heatmap' && heatmaps"
+        class="k-heatmap-section k-heatmap-stack"
+      >
+        <div class="k-section-title">
+          <v-icon icon="mdi-view-grid" />
+          Activity heatmap · last {{ heatmapSummary?.days }} days
+          <span v-if="heatmapSummary" class="k-section-sub">Σ {{ fmtNum(heatmapSummary.total) }} events · peak {{ fmtNum(heatmapSummary.peak) }}/day</span>
+        </div>
+
+        <div
+          v-for="(row, idx) in heatmaps" :key="row.id"
+          class="k-heatmap-row"
+        >
+          <div class="k-heatmap-row-title" :style="{ color: HEATMAP_CONFIGS[row.id].palette[4] }">
+            {{ HEATMAP_CONFIGS[row.id].label }}
+          </div>
+          <svg
+            :ref="idx === 0 ? setHeatmapSvgRef : undefined"
+            class="k-heatmap-svg"
+            :viewBox="row.data ? `0 0 ${row.data.vbW} ${row.data.vbH}` : '0 0 800 140'"
+          >
+            <template v-if="row.data">
+              <!-- Month labels along the top (only on the first row to save space) -->
+              <text
+                v-if="idx === 0"
+                v-for="m in row.data.monthLabels" :key="'hm-m-' + row.id + '-' + m.week"
+                :x="row.data.padLeft + m.week * (row.data.cellSize + row.data.gap)"
+                :y="row.data.padTop - 8"
+                font-size="11" fill="rgba(200,200,200,0.7)" font-weight="600"
+              >{{ m.label }}</text>
+
+              <!-- Day-of-week labels on the left (Mon / Wed / Fri) -->
+              <text
+                v-for="lbl in HEATMAP_DAY_LABELS" :key="'hm-d-' + row.id + '-' + lbl"
+                :x="row.data.padLeft - 8"
+                :y="row.data.padTop + HEATMAP_DAY_IDX[lbl] * (row.data.cellSize + row.data.gap) + row.data.cellSize - 2"
+                text-anchor="end" font-size="10" fill="rgba(200,200,200,0.6)"
+              >{{ lbl }}</text>
+
+              <!-- Cells. `<title>` skipped on empty cells to keep the DOM light — 365×3
+                   rows + day padding can mean ~1100 cells per heatmap render. -->
+              <rect
+                v-for="c in row.data.cells" :key="`hm-${row.id}-${c.week}-${c.dow}`"
+                :x="c.x" :y="c.y"
+                :width="row.data.cellSize" :height="row.data.cellSize"
+                rx="2" ry="2"
+                :fill="c.inRange ? row.data.cfg.palette[c.level] : 'rgba(127,127,127,0.04)'"
+              ><title v-if="c.count > 0">{{ c.label }}: {{ c.count }}</title></rect>
+            </template>
+          </svg>
+        </div>
+
+        <div class="k-heatmap-legend">
+          <span>Less</span>
+          <i v-for="i in [0, 1, 2, 3, 4]" :key="'hm-leg-' + i" class="k-hm-swatch" :style="{ background: HEATMAP_CONFIGS.heatmapAll.palette[i] }" />
+          <span>More</span>
         </div>
       </section>
 
@@ -657,42 +766,72 @@
         </ul>
       </section>
 
-      <!-- Risks: overdue / stale / unassigned -->
-      <section v-else-if="currentMode === 'risks'" class="k-risks">
-        <div class="k-risks-grid">
-          <div class="k-risks-card">
-            <div class="k-section-title">Overdue · {{ risks.overdue.length }}</div>
-            <ul v-if="risks.overdue.length" class="k-list">
-              <li v-for="(r, i) in risks.overdue" :key="i" :class="{ 'k-clickable': !!r.url }" @click="openIssue(r.url)" title="Open issue in GitLab">
-                <span class="k-list-title" :title="r.title">{{ r.title }}</span>
-                <span class="k-list-side k-list-bad">{{ r.ageDays }}d overdue</span>
-              </li>
-            </ul>
-            <div v-else class="k-empty">Nothing overdue.</div>
+      <!-- Ticket health: problem categories + worst-offender list -->
+      <section v-else-if="currentMode === 'risks'" class="k-health">
+        <div class="k-health-grid">
+          <button type="button" class="k-health-card k-clickable" @click="filterOverdue" title="Filter graph to overdue tickets">
+            <v-icon :icon="PROBLEM_ICONS.overdue" class="k-health-icon" :style="{ color: PROBLEM_COLORS.overdue }" />
+            <div class="k-health-num">{{ fmtNum(risks.stats.overdue) }}</div>
+            <div class="k-health-lbl">Overdue</div>
+          </button>
+          <div class="k-health-card">
+            <v-icon :icon="PROBLEM_ICONS.stale" class="k-health-icon" :style="{ color: PROBLEM_COLORS.stale }" />
+            <div class="k-health-num">{{ fmtNum(risks.stats.stale) }}</div>
+            <div class="k-health-lbl">Stale &gt; {{ risks.staleThreshold }}d</div>
           </div>
-          <div class="k-risks-card">
-            <div class="k-section-title">Stale (no update &gt; {{ risks.staleThreshold }}d) · {{ risks.stale.length }}</div>
-            <ul v-if="risks.stale.length" class="k-list">
-              <li v-for="(r, i) in risks.stale" :key="i" :class="{ 'k-clickable': !!r.url }" @click="openIssue(r.url)" title="Open issue in GitLab">
-                <span class="k-list-title" :title="r.title">{{ r.title }}</span>
-                <span class="k-list-side">{{ r.ageDays }}d</span>
-              </li>
-            </ul>
-            <div v-else class="k-empty">Nothing stale.</div>
+          <button type="button" class="k-health-card k-clickable" @click="filterUnassigned" title="Filter graph to unassigned open tickets">
+            <v-icon :icon="PROBLEM_ICONS.unassigned" class="k-health-icon" :style="{ color: PROBLEM_COLORS.unassigned }" />
+            <div class="k-health-num">{{ fmtNum(risks.stats.unassigned) }}</div>
+            <div class="k-health-lbl">Unassigned</div>
+          </button>
+          <div class="k-health-card">
+            <v-icon :icon="PROBLEM_ICONS.noPriority" class="k-health-icon" :style="{ color: PROBLEM_COLORS.noPriority }" />
+            <div class="k-health-num">{{ fmtNum(risks.stats.noPriority) }}</div>
+            <div class="k-health-lbl">No priority</div>
           </div>
-          <div class="k-risks-card k-risks-stats">
-            <div class="k-stat k-stat-click" @click="filterUnassigned" title="Filter graph to unassigned open tickets">
-              <v-icon icon="mdi-account-off-outline" size="28" class="k-stat-icon" />
-              <div class="k-stat-num">{{ fmtNum(risks.unassigned) }}</div>
-              <div class="k-stat-lbl">Unassigned · open</div>
-            </div>
-            <div class="k-stat k-stat-click" @click="filterNoDueDate" title="Filter graph to open tickets with no due date">
-              <v-icon icon="mdi-calendar-question" size="28" class="k-stat-icon" />
-              <div class="k-stat-num">{{ fmtNum(risks.noDueDate) }}</div>
-              <div class="k-stat-lbl">No due date · open</div>
-            </div>
-          </div>
+          <button type="button" class="k-health-card k-clickable" @click="filterNoDueDate" title="Filter graph to open tickets with no due date">
+            <v-icon :icon="PROBLEM_ICONS.noDueDate" class="k-health-icon" :style="{ color: PROBLEM_COLORS.noDueDate }" />
+            <div class="k-health-num">{{ fmtNum(risks.stats.noDueDate) }}</div>
+            <div class="k-health-lbl">No due date</div>
+          </button>
+          <button type="button" class="k-health-card k-clickable" @click="filterBlocked" title="Filter graph to blocked tickets">
+            <v-icon :icon="PROBLEM_ICONS.blocked" class="k-health-icon" :style="{ color: PROBLEM_COLORS.blocked }" />
+            <div class="k-health-num">{{ fmtNum(risks.stats.blocked) }}</div>
+            <div class="k-health-lbl">Blocked</div>
+          </button>
         </div>
+
+        <div class="k-section-title k-health-title">
+          Most problematic · {{ risks.offenders.length }} ticket{{ risks.offenders.length === 1 ? '' : 's' }} with 2+ problems
+        </div>
+        <div v-if="!risks.offenders.length" class="k-empty">
+          <v-icon icon="mdi-shield-check-outline" size="48" />
+          <div>No tickets with multiple problems — health is good.</div>
+        </div>
+        <ul v-else class="k-target-feed k-health-feed">
+          <li
+            v-for="(t, i) in risks.offenders" :key="i"
+            :class="{ 'k-clickable': !!t.url }"
+            @click="openIssue(t.url)"
+            :title="t.url ? 'Open in GitLab' : ''"
+          >
+            <span class="k-target-pri">{{ t.priority || '—' }}</span>
+            <span class="k-feed-iid">{{ t.iid ? '#' + t.iid : '' }}</span>
+            <span class="k-feed-title" :title="t.title">{{ t.title }}</span>
+            <span class="k-health-tags">
+              <span
+                v-for="(p, pi) in t.problems" :key="pi"
+                class="k-health-tag"
+                :style="{ background: `${PROBLEM_COLORS[p.kind]}22`, color: PROBLEM_COLORS[p.kind] }"
+              >{{ p.detail }}</span>
+            </span>
+            <span class="k-feed-who" :title="t.assignees && t.assignees.length ? t.assignees[0] : ''">
+              <template v-if="t.assignees && t.assignees.length">
+                <span class="k-feed-avatar" :style="{ background: avatarColor(t.assignees[0]) }">{{ initialsOf(t.assignees[0]) }}</span>
+              </template>
+            </span>
+          </li>
+        </ul>
       </section>
     </main>
 
@@ -731,12 +870,13 @@ const { settings } = useSettingsStore()
 const root = ref(null)
 
 const ALL_MODES = [
-  { id: 'target',     label: 'Target milestone' },
-  { id: 'burnup',     label: 'Milestone burnup' },
-  { id: 'blockers',   label: 'Blockers' },
-  { id: 'wipStale',   label: 'Stale WIP' },
-  { id: 'today',      label: "Today's pulse" },
-  { id: 'velocity',   label: 'Velocity' },
+  { id: 'target',         label: 'Target milestone' },
+  { id: 'burnup',         label: 'Milestone burnup' },
+  { id: 'blockers',       label: 'Blockers' },
+  { id: 'wipStale',       label: 'Stale WIP' },
+  { id: 'today',          label: "Today's pulse" },
+  { id: 'velocity',       label: 'Velocity' },
+  { id: 'heatmap',        label: 'Activity heatmap' },
   { id: 'workload',   label: 'Workload by assignee' },
   { id: 'priority',   label: 'Priority overview' },
   { id: 'status',     label: 'Status breakdown' },
@@ -746,7 +886,7 @@ const ALL_MODES = [
   { id: 'aging',      label: 'Aging buckets' },
   { id: 'activity',   label: 'Recent activity' },
   { id: 'closed',     label: 'Recently closed' },
-  { id: 'risks',      label: 'Overdue, stale & unassigned' }
+  { id: 'risks',          label: 'Ticket health' }
 ]
 
 const activeModes = computed(() => {
@@ -882,23 +1022,38 @@ const handleWindowKey = (e) => {
   }
 }
 
-// Track the burnup SVG's actual pixel size — keeps viewBox 1:1 with screen so text
-// and strokes never get squished. Observer is rebuilt when burnup becomes the current
-// mode (the ref doesn't exist on other modes).
+// Track each per-mode SVG's actual pixel size — keeps viewBox 1:1 with screen so text
+// and strokes never get squished. Re-attaches when the relevant mode becomes current.
 let burnupRO = null
-const watchBurnupSvg = () => {
-  if (burnupRO) { burnupRO.disconnect(); burnupRO = null }
-  const el = burnupSvgRef.value
-  if (!el || typeof ResizeObserver === 'undefined') return
+let heatmapRO = null
+const observeSize = (existing, el, sizeRef) => {
+  if (existing) existing.disconnect()
+  if (!el || typeof ResizeObserver === 'undefined') return null
   const update = () => {
     const r = el.getBoundingClientRect()
-    if (r.width && r.height) burnupSize.value = { w: Math.round(r.width), h: Math.round(r.height) }
+    if (r.width && r.height) sizeRef.value = { w: Math.round(r.width), h: Math.round(r.height) }
   }
   update()
-  burnupRO = new ResizeObserver(update)
-  burnupRO.observe(el)
+  const ro = new ResizeObserver(update)
+  ro.observe(el)
+  return ro
 }
-watch(() => [currentMode.value, burnupSvgRef.value], () => nextTick(watchBurnupSvg))
+// SVG refs + size refs need to be declared here so the watcher below can reference
+// them — the actual mode sections later in the file just use these same refs.
+const burnupSvgRef = ref(null)
+const burnupSize = ref(null)  // null until ResizeObserver has measured the SVG
+const heatmapSvgRef = ref(null)
+const heatmapSize = ref(null)
+// Function ref used inside the v-for'd <svg>. Only sets the ref — the watcher on
+// `heatmapSvgRef.value` (further down) handles attaching the ResizeObserver. Doing
+// any extra work here would re-run on every component update and trigger an RO loop.
+const setHeatmapSvgRef = (el) => { heatmapSvgRef.value = el }
+
+const watchModeSvgs = () => {
+  burnupRO  = observeSize(burnupRO,  burnupSvgRef.value,  burnupSize)
+  heatmapRO = observeSize(heatmapRO, heatmapSvgRef.value, heatmapSize)
+}
+watch(() => [currentMode.value, burnupSvgRef.value, heatmapSvgRef.value], () => nextTick(watchModeSvgs))
 
 onMounted(() => {
   startCycle()
@@ -906,14 +1061,15 @@ onMounted(() => {
   nowTickTimer = setInterval(() => { nowTick.value = Date.now() }, 1000)
   window.addEventListener('keydown', handleWindowKey)
   if (root.value && typeof root.value.focus === 'function') root.value.focus()
-  nextTick(watchBurnupSvg)
+  nextTick(watchModeSvgs)
 })
 onUnmounted(() => {
   if (cycleTimer) clearInterval(cycleTimer)
   if (refreshTimer) clearInterval(refreshTimer)
   if (nowTickTimer) clearInterval(nowTickTimer)
   window.removeEventListener('keydown', handleWindowKey)
-  if (burnupRO) { burnupRO.disconnect(); burnupRO = null }
+  if (burnupRO)  { burnupRO.disconnect();  burnupRO = null }
+  if (heatmapRO) { heatmapRO.disconnect(); heatmapRO = null }
 })
 
 // Priority buckets — declared up here because the global `priorityFilter` setting
@@ -1414,11 +1570,8 @@ const targetForecast = computed(() => {
 // We rebuild the lines from `created_at` / `closed_at` events on the currently-loaded
 // ticket data — there are no historical snapshots, so retroactive label changes etc.
 // can't be reconstructed.
-// viewBox dimensions are matched to the container's actual pixel size (via the
-// ResizeObserver below) so `preserveAspectRatio="none"` doesn't squish text or strokes.
-// Padding sized for the larger kiosk font sizes used in the labels below.
-const burnupSize = ref({ w: 800, h: 320 })
-const burnupSvgRef = ref(null)
+// `burnupSvgRef` + `burnupSize` are declared near the top of the script alongside the
+// other mode SVG refs so the global `watchModeSvgs` watcher can reference them.
 const BURNUP_PAD = { top: 28, right: 28, bottom: 48, left: 58 }
 const burnupCfg = computed(() => settings.uiState.kiosk?.modeConfig?.burnup || {})
 const targetBurnup = computed(() => {
@@ -1471,6 +1624,7 @@ const targetBurnup = computed(() => {
   if (sampleEnd < end) points.push({ ts: end, scope: scopeAcc, closed: closedAcc })
 
   // Scales — driven by current container size so 1 user-space unit = 1 screen pixel.
+  if (!burnupSize.value) return null
   const vbW = Math.max(400, burnupSize.value.w)
   const vbH = Math.max(200, burnupSize.value.h)
   const maxY = Math.max(1, scopeAcc)
@@ -1527,6 +1681,21 @@ const targetBurnup = computed(() => {
     yTicks.push({ v, y: yFor(v) })
   }
 
+  // "Data available since" marker — when `gitlabClosedDays` < chart window, closures
+  // older than (now − gitlabClosedDays) were never fetched. The closed line for that
+  // historical range is fake-flat; we draw a dim overlay + vertical marker so the team
+  // sees which portion of the chart is unreliable.
+  const closedDays = Math.max(0, Number(settings.config.gitlabClosedDays) || 0)
+  const closedAvailableMs = closedDays > 0 ? now - closedDays * day : null
+  const closedCutoffX = (closedAvailableMs != null && closedAvailableMs > start && closedAvailableMs <= end)
+    ? xFor(closedAvailableMs) : null
+  const closedHistoryComplete = closedDays === 0
+    ? false
+    : (closedAvailableMs != null && closedAvailableMs <= start)
+  const closedCutoffLabel = closedAvailableMs != null
+    ? new Date(closedAvailableMs).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : null
+
   // Risk colouring for the open-work band: amber by default, dim red when closed is
   // tracking visibly behind ideal (≥ 15 tickets late).
   let onTrack = true
@@ -1551,6 +1720,7 @@ const targetBurnup = computed(() => {
     scopeBaseline, closedBaseline,
     windowDays,
     maxY,
+    closedCutoffX, closedDays, closedHistoryComplete, closedCutoffLabel,
     vbWidth: vbW, vbHeight: vbH,
     innerLeft: BURNUP_PAD.left, innerTop: BURNUP_PAD.top,
     innerRight: vbW - BURNUP_PAD.right, innerBottom: vbH - BURNUP_PAD.bottom
@@ -1609,6 +1779,127 @@ const activityFeed = computed(() => {
   }
   ev.sort((a, b) => b.ts - a.ts)
   return ev.slice(0, limit)
+})
+
+// --- Activity heatmap (GitHub contribution-graph style) ----------------------------
+// Three sibling modes (heatmapCreated / heatmapClosed / heatmapAll) share one helper
+// and only differ in which event kinds they count + which palette they use.
+const HEATMAP_CONFIGS = {
+  heatmapCreated: { kinds: ['opened'], label: 'Tickets created',
+    palette: ['rgba(127,127,127,0.12)', '#0e4429', '#006d32', '#26a641', '#39d353'] },
+  heatmapClosed:  { kinds: ['closed'],  label: 'Tickets closed',
+    palette: ['rgba(127,127,127,0.12)', '#0d2f4d', '#1f4e8b', '#388bfd', '#79c0ff'] },
+  heatmapAll:     { kinds: ['opened', 'closed'], label: 'All ticket activity',
+    palette: ['rgba(127,127,127,0.12)', '#3a1d5b', '#553098', '#a371f7', '#d2a8ff'] }
+}
+const heatmapCfg = computed(() => settings.uiState.kiosk?.modeConfig?.heatmap || {})
+// `heatmapSvgRef`, `heatmapSize`, `setHeatmapSvgRef` are declared up top alongside the
+// burnup refs so the shared `watchModeSvgs` watcher can reference them safely.
+
+const HEATMAP_DAY_LABELS = ['Mon', 'Wed', 'Fri']  // sparse like GitHub
+const HEATMAP_DAY_IDX    = { Mon: 1, Wed: 3, Fri: 5 }
+
+const computeHeatmapFor = (modeId) => {
+  const cfg = HEATMAP_CONFIGS[modeId]
+  if (!cfg) return null
+  const wantOpened = cfg.kinds.includes('opened')
+  const wantClosed = cfg.kinds.includes('closed')
+  const days = Math.max(60, Math.min(730, Number(heatmapCfg.value.days) || 365))
+  const dayMs = 24 * 60 * 60 * 1000
+  const today0 = startOfToday()
+  const earliest = today0 - (days - 1) * dayMs
+  // Align grid to a Monday before/at the earliest day (column = ISO week, row = day-of-week).
+  // JS getDay(): 0=Sun..6=Sat → we want Mon=0..Sun=6.
+  const dowMon = (ts) => (new Date(ts).getDay() + 6) % 7
+  const alignedStart = earliest - dowMon(earliest) * dayMs
+  const totalDays = Math.floor((today0 - alignedStart) / dayMs) + 1
+  const totalWeeks = Math.ceil(totalDays / 7)
+
+  // Build the grid
+  const cells = new Array(totalWeeks * 7)
+  for (let i = 0; i < cells.length; i++) {
+    const ts = alignedStart + i * dayMs
+    cells[i] = { ts, dow: i % 7, week: Math.floor(i / 7), count: 0, inRange: ts >= earliest && ts <= today0 }
+  }
+
+  // Tally events
+  for (const n of items.value) {
+    const raw = n._raw || {}
+    const stamps = []
+    if (wantOpened) { const c = safeDate(raw.created_at); if (c) stamps.push(c) }
+    if (wantClosed) { const c = safeDate(raw.closed_at);  if (c) stamps.push(c) }
+    for (const ts of stamps) {
+      if (ts < earliest || ts > today0 + dayMs) continue
+      const idx = Math.floor((ts - alignedStart) / dayMs)
+      if (cells[idx]) cells[idx].count++
+    }
+  }
+
+  const maxCount = Math.max(1, ...cells.map(c => c.count))
+  // Use sqrt-spaced thresholds so a busy day stands out without flattening the lows.
+  const t1 = Math.max(1, Math.round(maxCount * 0.10))
+  const t2 = Math.max(t1 + 1, Math.round(maxCount * 0.25))
+  const t3 = Math.max(t2 + 1, Math.round(maxCount * 0.50))
+  for (const c of cells) {
+    if (!c.inRange || c.count === 0) c.level = 0
+    else if (c.count <= t1) c.level = 1
+    else if (c.count <= t2) c.level = 2
+    else if (c.count <= t3) c.level = 3
+    else c.level = 4
+  }
+
+  // Month labels at the top: position at the first cell of each new month (week column).
+  const monthLabels = []
+  let lastMonth = -1
+  for (let w = 0; w < totalWeeks; w++) {
+    const cell = cells[w * 7]
+    if (!cell) continue
+    const d = new Date(cell.ts)
+    if (d.getMonth() !== lastMonth) {
+      monthLabels.push({ week: w, label: d.toLocaleDateString(undefined, { month: 'short' }) })
+      lastMonth = d.getMonth()
+    }
+  }
+
+  // Pixel layout — adapts to container size.
+  if (!heatmapSize.value) return null
+  const vbW = Math.max(400, heatmapSize.value.w)
+  const vbH = Math.max(160, heatmapSize.value.h)
+  const padLeft = 36, padTop = 28, padRight = 8, padBottom = 8, gap = 3
+  const cellSize = Math.floor(Math.min(
+    (vbW - padLeft - padRight - gap * (totalWeeks - 1)) / totalWeeks,
+    (vbH - padTop - padBottom - gap * 6) / 7
+  ))
+  const xFor = (w) => padLeft + w * (cellSize + gap)
+  const yFor = (dow) => padTop + dow * (cellSize + gap)
+  // Skip the date label format for cells that won't render a <title> (empty days)
+  // — `new Date().toLocaleDateString()` on every cell adds up fast for 365×3 rows.
+  const positionedCells = cells.map(c => ({
+    ...c, x: xFor(c.week), y: yFor(c.dow),
+    label: c.count > 0 ? new Date(c.ts).toLocaleDateString() : ''
+  }))
+
+  // Total events counted (for the title)
+  const total = positionedCells.reduce((s, c) => s + (c.inRange ? c.count : 0), 0)
+
+  return {
+    cfg, cells: positionedCells, monthLabels, totalWeeks, cellSize, gap,
+    vbW, vbH, padLeft, padTop, days, total, maxCount
+  }
+}
+
+// All three datasets at once — rendered as a stack of 3 rows in the single
+// `heatmap` mode. Each row gets its own slice of the SVG, hence its own size.
+const HEATMAP_ROWS = ['heatmapCreated', 'heatmapClosed', 'heatmapAll']
+const heatmaps = computed(() => {
+  if (currentMode.value !== 'heatmap') return null
+  return HEATMAP_ROWS.map(id => ({ id, data: computeHeatmapFor(id) }))
+})
+const heatmapSummary = computed(() => {
+  if (!heatmaps.value) return null
+  const total = heatmaps.value.reduce((s, h) => s + (h.data?.total || 0), 0)
+  const peak = Math.max(0, ...heatmaps.value.map(h => h.data?.maxCount || 0))
+  return { total, peak, days: (heatmaps.value[0]?.data?.days) || 0 }
 })
 
 const FEED_ICON  = { opened: 'mdi-plus-circle', closed: 'mdi-check-circle', updated: 'mdi-pencil-circle' }
@@ -1728,30 +2019,59 @@ const closedRecently = computed(() => {
   return { list: out.slice(0, limit), total: out.length, hours }
 })
 
+// "Ticket health" — problem-focused dashboard. Each open ticket is checked against a
+// list of common problems (overdue / stale / unassigned / no priority / no due date /
+// blocked) and assigned a severity score. The Most Problematic list surfaces the top
+// score-summing tickets so the wall flags the worst offenders at a glance.
 const risksCfg = computed(() => settings.uiState.kiosk?.modeConfig?.risks || {})
+const PROBLEM_WEIGHTS  = { overdue: 3, blocked: 3, stale: 2, unassigned: 1, noPriority: 1, noDueDate: 1 }
+const PROBLEM_COLORS   = { overdue: '#ef5350', blocked: '#ef5350', stale: '#ffb300', unassigned: '#ffb300', noPriority: '#90a4ae', noDueDate: '#90a4ae' }
+const PROBLEM_LABELS   = { overdue: 'Overdue', stale: 'Stale', unassigned: 'Unassigned', noPriority: 'No priority', noDueDate: 'No due date', blocked: 'Blocked' }
+const PROBLEM_ICONS    = { overdue: 'mdi-calendar-alert', stale: 'mdi-timer-sand', unassigned: 'mdi-account-off-outline', noPriority: 'mdi-alert-circle-outline', noDueDate: 'mdi-calendar-question', blocked: 'mdi-cancel' }
+
 const risks = computed(() => {
   const staleThreshold = Math.max(1, Number(risksCfg.value.staleListDays) || 14)
-  const listLimit = Math.max(1, Number(risksCfg.value.listLimit) || 10)
+  const listLimit = Math.max(1, Number(risksCfg.value.listLimit) || 12)
   const now = Date.now()
   const day = 24 * 60 * 60 * 1000
-  const overdue = []
-  const stale = []
-  let unassigned = 0
-  let noDueDate = 0
+  const stats = { overdue: 0, stale: 0, unassigned: 0, noPriority: 0, noDueDate: 0, blocked: 0 }
+  const offenders = []
   for (const n of openItems.value) {
     const raw = n._raw || {}
-    const url = raw.web_url || ''
-    const title = raw.title || n.name
     const due = safeDate(raw.due_date)
-    if (due && due < now) overdue.push({ title, url, ageDays: Math.max(1, Math.floor((now - due) / day)) })
-    else if (!due) noDueDate++
-    const upd = safeDate(raw.updated_at)
-    if (upd && (now - upd) > staleThreshold * day) stale.push({ title, url, ageDays: Math.floor((now - upd) / day) })
-    if (!getAssigneeNames(raw).length) unassigned++
+    const upd = safeDate(raw.updated_at) || safeDate(raw.created_at) || 0
+    const assignees = getAssigneeNames(raw)
+    const priorityVal = getScopedLabelValue(raw.labels, 'Priority') || ''
+    const status = currentStatusOfRaw(raw) || ''
+
+    const problems = []
+    if (due && due < now) {
+      stats.overdue++; problems.push({ kind: 'overdue', detail: `${Math.max(1, Math.floor((now - due) / day))}d overdue` })
+    }
+    if (!due) {
+      stats.noDueDate++; problems.push({ kind: 'noDueDate', detail: 'no due date' })
+    }
+    if (upd && (now - upd) > staleThreshold * day) {
+      stats.stale++; problems.push({ kind: 'stale', detail: `${Math.floor((now - upd) / day)}d stale` })
+    }
+    if (!assignees.length) { stats.unassigned++; problems.push({ kind: 'unassigned', detail: 'unassigned' }) }
+    if (!priorityVal)      { stats.noPriority++; problems.push({ kind: 'noPriority', detail: 'no priority' }) }
+    if (/blocked/i.test(status)) { stats.blocked++; problems.push({ kind: 'blocked', detail: 'blocked' }) }
+
+    if (problems.length >= 2) {
+      offenders.push({
+        iid: raw.iid != null ? String(raw.iid) : '',
+        title: raw.title || n.name,
+        url: raw.web_url || '',
+        priority: priorityVal,
+        assignees,
+        problems,
+        score: problems.reduce((s, p) => s + (PROBLEM_WEIGHTS[p.kind] || 1), 0)
+      })
+    }
   }
-  overdue.sort((a, b) => b.ageDays - a.ageDays)
-  stale.sort((a, b) => b.ageDays - a.ageDays)
-  return { overdue: overdue.slice(0, listLimit), stale: stale.slice(0, listLimit), staleThreshold, unassigned, noDueDate }
+  offenders.sort((a, b) => b.score - a.score)
+  return { stats, offenders: offenders.slice(0, listLimit), staleThreshold }
 })
 
 // --- Deep-link actions (click → filter or open issue) ---
@@ -1801,6 +2121,8 @@ const filterByDay = (dayIso) => applyFilter({
 })
 const filterUnassigned = () => applyFilter({ selectedAssignees: ['@unassigned'] })
 const filterNoDueDate  = () => applyFilter({ dueStatus: 'none' })
+const filterOverdue    = () => applyFilter({ dueStatus: 'overdue' })
+const filterBlocked    = () => applyFilter({ selectedStatuses: ['Blocked', 'On Hold/Blocked'] })
 
 const relTime = (ts) => {
   const diff = Math.max(0, nowTick.value - ts)
@@ -2140,7 +2462,10 @@ const relTime = (ts) => {
 }
 .k-target-feed li {
   display: grid;
-  grid-template-columns: 90px 56px minmax(0, 1fr) auto auto;
+  /* auto-sized chip + iid (collapse to 0 when empty) keep the title as wide as
+     possible. minmax(160px, 1fr) prevents the title from shrinking to a few
+     letters on narrow / portrait kiosks. */
+  grid-template-columns: auto auto minmax(160px, 1fr) auto auto;
   gap: 10px;
   padding: 7px 12px;
   border-radius: 8px;
@@ -2158,6 +2483,7 @@ const relTime = (ts) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 110px;
 }
 .k-target-empty {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -2370,6 +2696,43 @@ const relTime = (ts) => {
 }
 .k-burnup-legend .k-legend-spacer { flex: 1; }
 .k-burnup-warn { color: #ef5350; font-weight: 600; }
+.k-burnup-warn-data {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #ffb300;
+  font-weight: 600;
+}
+
+/* Activity heatmap */
+.k-heatmap-section { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; }
+.k-heatmap-stack { gap: 6px; }
+.k-heatmap-row {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 2px;
+}
+.k-heatmap-row-title {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.85;
+  padding-left: 36px;
+}
+.k-heatmap-svg { flex: 1; min-height: 0; width: 100%; height: 100%; }
+.k-heatmap-legend {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 13px; opacity: 0.75; justify-content: flex-end;
+}
+.k-heatmap-legend .k-hm-swatch {
+  display: inline-block; width: 12px; height: 12px;
+  border-radius: 2px;
+}
+.k-heatmap-legend span:first-child { margin-right: 4px; }
+.k-heatmap-legend span:last-child  { margin-left: 4px; }
 
 /* Blockers (fire-alarm) */
 .k-blockers { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; }
@@ -2482,34 +2845,72 @@ const relTime = (ts) => {
   .k-feed-iid, .k-feed-who { display: none; }
 }
 
-/* Risks */
-.k-risks { flex: 1; min-height: 0; }
-.k-risks-grid {
+/* Ticket health (problems dashboard) */
+.k-health { display: flex; flex-direction: column; gap: 16px; flex: 1; min-height: 0; }
+.k-health-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 18px;
-  height: 100%;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
 }
-.k-risks-card {
+.k-health-card {
+  appearance: none;
+  text-align: left;
   border: 1px solid rgba(127, 127, 127, 0.2);
-  border-radius: 10px;
-  padding: 16px;
-  background: rgba(127, 127, 127, 0.04);
-  overflow: hidden;
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: rgba(127, 127, 127, 0.05);
+  color: inherit;
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  cursor: default;
 }
-.k-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 4px; overflow: auto; }
-.k-list li { display: flex; gap: 12px; align-items: center; }
-.k-list-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.k-list-side { font-size: 12px; opacity: 0.6; font-variant-numeric: tabular-nums; }
-.k-list-bad { color: #ef5350; opacity: 1; }
-.k-risks-stats { display: flex; flex-direction: column; gap: 16px; justify-content: center; }
-.k-risks-stats .k-stat { padding: 14px; }
-.k-risks-stats .k-stat-num { font-size: clamp(36px, 6vw, 90px); }
+.k-health-card.k-clickable { cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+.k-health-card.k-clickable:hover { background: rgba(127, 127, 127, 0.14); border-color: rgba(var(--v-theme-primary), 0.45); }
+.k-health-icon { opacity: 0.85; }
+.k-health-num {
+  font-size: clamp(28px, 4vw, 52px);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  margin-top: 4px;
+}
+.k-health-lbl {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.7;
+  font-weight: 600;
+}
+
+.k-health-title { text-transform: none; font-size: clamp(16px, 1.6vw, 22px); letter-spacing: 0; opacity: 0.95; }
+.k-health-feed { flex: 1; min-height: 0; }
+.k-target-feed.k-health-feed li {
+  grid-template-columns: 90px 60px minmax(0, 1fr) minmax(0, 2fr) 30px;
+}
+.k-health-tags {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.k-health-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
 
 @media (max-width: 900px) {
   .k-today { grid-template-columns: repeat(2, 1fr); }
-  .k-risks-grid { grid-template-columns: 1fr; }
+  .k-health-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 640px) {
+  .k-health-grid { grid-template-columns: repeat(2, 1fr); }
 }
 </style>

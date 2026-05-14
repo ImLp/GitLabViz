@@ -43,6 +43,16 @@ export function useSettingsStore() {
       Object.assign(settings.graph, savedData.graph || {})
       Object.assign(settings.meta, savedData.meta || {})
 
+      // One-time migration: the default for `gitlabClosedDays` changed from 7 → 180
+      // in 0.11.3. Existing users still sitting on the old default get a one-off bump
+      // (anything they explicitly chose, even 7-day, is preserved after the flag is set).
+      // The watcher in useDataLoader will see the change and trigger a full re-sync on
+      // the next refresh so the newly-included history actually arrives.
+      if (!settings.meta.closedDaysDefaultBumped && settings.config.gitlabClosedDays === 7) {
+        settings.config.gitlabClosedDays = 180
+      }
+      settings.meta.closedDaysDefaultBumped = true
+
       Object.assign(settings.uiState.ui, savedData.uiState?.ui || {})
       Object.assign(settings.uiState.presets, savedData.uiState?.presets || {})
       Object.assign(settings.uiState.view, savedData.uiState?.view || {})
@@ -58,7 +68,15 @@ export function useSettingsStore() {
         if (typeof k.excludeBacklog === 'boolean') settings.uiState.kiosk.excludeBacklog = k.excludeBacklog
         if (Array.isArray(k.priorityFilter)) settings.uiState.kiosk.priorityFilter = k.priorityFilter.slice()
         if (typeof k.targetMilestone === 'string') settings.uiState.kiosk.targetMilestone = k.targetMilestone
-        if (k.modes && typeof k.modes === 'object') Object.assign(settings.uiState.kiosk.modes, k.modes)
+        if (k.modes && typeof k.modes === 'object') {
+          Object.assign(settings.uiState.kiosk.modes, k.modes)
+          // Backward compat: heatmapCreated / heatmapClosed / heatmapAll were merged
+          // into a single `heatmap` mode in 0.11.6. If the user had any of the legacy
+          // ones enabled, enable the new combined mode too.
+          if (k.modes.heatmapCreated || k.modes.heatmapClosed || k.modes.heatmapAll) {
+            settings.uiState.kiosk.modes.heatmap = true
+          }
+        }
         if (k.modeConfig && typeof k.modeConfig === 'object') {
           for (const id of Object.keys(settings.uiState.kiosk.modeConfig)) {
             if (k.modeConfig[id] && typeof k.modeConfig[id] === 'object') {

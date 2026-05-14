@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.11.9] - 2026-05-14
+- Fix: Activity heatmap kiosk page was hanging the browser. Three layers stacked into a perfect ResizeObserver loop: the v-for'd SVG used a function ref that called `nextTick(watchModeSvgs)` on every render, the watcher re-attached the observer, the observer's synchronous `update()` could shift `heatmapSize` by a subpixel from layout rounding, that re-rendered the SVG, the function ref fired again, … forever. Stripped the function ref down to just setting the ref value; the existing watcher already handles observer attachment when the ref changes.
+- Also reduced heatmap DOM weight: skip the `<title>` tooltip and the `new Date().toLocaleDateString()` formatting on empty cells (most of the ~1100 cells per render). The grid stays visually identical but the DOM is roughly half the elements and the recompute is faster.
+
+## [0.11.8] - 2026-05-14
+- Kiosk feed rows (Blockers / Stale WIP / Target open list) layout cleaned up: priority chip and iid columns now auto-size to their content (collapsing to 0 when empty), and the title column has a 160px minimum so titles don't truncate to a few letters on narrow / portrait kiosks. Priority chip width is also capped at 110px so an unusually long Priority label can't dominate.
+
+## [0.11.7] - 2026-05-14
+- Fix: `ReferenceError: Cannot access 'burnupSvgRef' before initialization` on kiosk mount. The `watchModeSvgs` watcher tracked `burnupSvgRef` / `heatmapSvgRef` but those refs were declared lower in the file, hitting JS's temporal dead zone when the watcher's getter ran during `setup()`. Moved both pairs of refs (and the heatmap function-ref setter) up next to the watcher.
+
+## [0.11.6] - 2026-05-14
+- Activity heatmap consolidated: the three separate Heatmap modes (Created / Closed / All) are merged into a single **Activity heatmap** mode that stacks all three rows in one view — green for creates, blue for closes, purple for combined. Better use of vertical space than the previous "one mode per heatmap" approach. Header still shows the totals/peaks across all three. Existing users who had any of the legacy modes enabled are auto-migrated to the new combined mode.
+
+## [0.11.5] - 2026-05-14
+- Fix: a normal Refresh now reliably picks up the wider closed-history window. The previous detection relied on a Vue watcher firing as the value changed; if two synchronous mutations (e.g., the migration bumping 7 → 180 right after `Object.assign` had set it to 7) batched into a single tick that ended at the same value Vue had seen before, the watcher never fired. Replaced with a robust check: every successful sync remembers the `gitlabClosedDays` it ran under (`meta.lastSyncClosedDays`), and the next `loadData` compares against the current setting — different ⇒ force full. No watcher timing involved.
+
+## [0.11.4] - 2026-05-14
+- Fix: burnup and heatmap charts no longer visibly resize a frame after the kiosk mode is entered (or the page is reloaded with `Ctrl+R`). The chart used to render once at a fallback viewBox and then snap to the real container size when the ResizeObserver caught up. The SVG content now only renders after the observer has measured the container, so it appears at the correct size in one go.
+
+## [0.11.3] - 2026-05-14
+- The default "Include closed issues" window is now **Last 180 days (6 months)** instead of 7 days. Existing users still sitting on the old 7-day default get a one-time bump to 180; anyone who explicitly picked a different value (14 / 30 / 90 / etc.) is preserved. The auto-full-sync watcher kicks in afterwards, so the next refresh actually fetches the newly-included history.
+
+## [0.11.2] - 2026-05-14
+- Burnup chart now flags the portion of the timeline that pre-dates GitLab's `Include closed issues` window. The old portion gets an amber-hatched overlay + a dashed vertical marker labeled "Closed data starts here", and the legend carries an `mdi-alert` warning ("Closed data only available since May 7 (last 7d) — earlier portion may be incomplete" or "Closed data not loaded — set Include closed issues in Configuration → GitLab" when the value is 0). Without this, the closed line looked flat-then-spiking and made teams think they hadn't closed anything for months when really we just hadn't fetched it.
+
+## [0.11.1] - 2026-05-14
+- "Overdue / stale / unassigned" mode redesigned as **Ticket health**:
+  - Six problem-category stat cards at the top — Overdue / Stale / Unassigned / No priority / No due date / Blocked — each click-throughs into the corresponding main-graph filter where applicable.
+  - **Most problematic** list below — every open ticket gets scored against all six problem categories; tickets hitting 2+ problems are listed sorted by severity (weighted: overdue & blocked count higher than missing metadata). Each row shows the priority pill, iid, title, all matching problem tags (colored chips), and assignee avatar — click opens in GitLab.
+  - Respects all global kiosk filters (target milestone + priority + stale + exclude-backlog) like every other mode.
+
+## [0.11.0] - 2026-05-14
+- Three new kiosk modes — GitHub-style activity heatmaps:
+  - **Heatmap · created** (green) — tickets created per day
+  - **Heatmap · closed** (blue) — tickets closed per day
+  - **Heatmap · all** (purple) — combined opens + closes per day
+
+  Default window is 365 days (configurable 60–730). Cells are intensity-bucketed against the busiest day so spikes stand out, month labels run along the top, Mon/Wed/Fri labels on the left. Less ↔ More legend in the bottom-right. All three modes share one `days` config in Configuration → Kiosk and cycle naturally as part of the kiosk rotation — the wall flips through the three colors over time.
+
 ## [0.10.12] - 2026-05-14
 - Changing "Include closed issues" now auto-triggers a full re-sync on the next normal refresh — no more needing Ctrl+Refresh to actually fetch the newly-included history.
 - New options in the dropdown: Last 180 days (6 months), Last 365 days (1 year).
