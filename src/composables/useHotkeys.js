@@ -30,6 +30,7 @@ export const HOTKEY_ACTIONS = [
 
   { id: 'toggleTheme',           label: 'Cycle theme (light / dark / system)',  default: 't',        group: 'app' },
   { id: 'openConfig',            label: 'Open configuration',                   default: ',',        group: 'app' },
+  { id: 'toggleKiosk',           label: 'Toggle kiosk dashboard',               default: 'shift+k',  group: 'app' },
   { id: 'showHotkeyHelp',        label: 'Show keyboard shortcuts',              default: '?',        group: 'app' }
 ]
 

@@ -120,6 +120,14 @@
         @close="activePage = 'main'"
         @open-config="configInitialTab = 'gitlab'; activePage = 'config'"
       />
+      <KioskPage
+        v-else-if="activePage === 'kiosk'"
+        :nodes="filteredNodes"
+        :loading="loading"
+        :last-updated="lastUpdated"
+        :on-refresh="handleRefreshClick"
+        @close="activePage = 'main'"
+      />
       <v-container v-else fluid class="pa-0 fill-height position-relative">
         <div v-if="error" class="position-absolute top-0 w-100 pa-4 text-error z-index-10 bg-surface">
           {{ error }}
@@ -251,6 +259,7 @@ import IssueGraph from './components/IssueGraph.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import ConfigPage from './components/ConfigPage.vue'
 import ChatToolsPage from './components/ChatToolsPage.vue'
+import KioskPage from './components/KioskPage.vue'
 import SvnLogDialog from './components/SvnLogDialog.vue'
 import { useAppTheme } from './composables/useAppTheme'
 import { useHashRouting } from './composables/useHashRouting'
@@ -931,6 +940,7 @@ const hotkeyHandlers = {
     settings.uiState.ui.theme = order[(i + 1 + order.length) % order.length]
   },
   openConfig,
+  toggleKiosk: () => { activePage.value = activePage.value === 'kiosk' ? 'main' : 'kiosk' },
   showHotkeyHelp: () => { showHotkeyHelp.value = !showHotkeyHelp.value }
 }
 

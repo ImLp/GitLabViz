@@ -14,6 +14,7 @@
         <v-tab v-if="canUseSvn" value="svn" prepend-icon="mdi-folder-network">SVN</v-tab>
         <v-tab v-if="isElectron" value="mattermost" prepend-icon="mdi-message-text">Mattermost</v-tab>
         <v-tab value="cache" prepend-icon="mdi-database">Cache</v-tab>
+        <v-tab value="kiosk" prepend-icon="mdi-monitor-dashboard">Kiosk</v-tab>
         <v-tab value="hotkeys" prepend-icon="mdi-keyboard-outline">Hotkeys</v-tab>
         <v-tab value="about" prepend-icon="mdi-information-outline">About</v-tab>
         <v-tab value="changelog" prepend-icon="mdi-text-box-outline">Changelog</v-tab>
@@ -671,6 +672,80 @@
         </v-container>
       </v-window-item>
 
+      <!-- Kiosk -->
+      <v-window-item value="kiosk">
+        <v-container class="py-6 config-max">
+          <v-card>
+            <v-card-title class="text-subtitle-1 d-flex align-center">
+              <v-icon icon="mdi-monitor-dashboard" class="mr-2" />
+              Kiosk dashboard
+            </v-card-title>
+            <v-divider />
+            <v-card-text>
+              <div class="text-caption text-medium-emphasis mb-4">
+                Full-screen status display that auto-refreshes data and cycles through
+                summary views — handy for a wall-mounted screen.
+                Open with <kbd>Shift+K</kbd>, exit with <kbd>Esc</kbd>. Arrow keys to step
+                modes manually, <kbd>Space</kbd> to pause cycling.
+              </div>
+
+              <v-row dense>
+                <v-col cols="12" sm="6">
+                  <v-text-field
+                    v-model.number="settings.uiState.kiosk.refreshMinutes"
+                    type="number"
+                    min="0"
+                    label="Auto-refresh interval (minutes)"
+                    hint="0 disables auto-refresh"
+                    persistent-hint
+                    variant="outlined"
+                    density="comfortable"
+                  />
+                </v-col>
+                <v-col cols="12" sm="6">
+                  <v-text-field
+                    v-model.number="settings.uiState.kiosk.cycleSeconds"
+                    type="number"
+                    min="0"
+                    label="Mode cycle interval (seconds)"
+                    hint="0 stays on the current mode"
+                    persistent-hint
+                    variant="outlined"
+                    density="comfortable"
+                  />
+                </v-col>
+                <v-col cols="12" sm="6">
+                  <v-text-field
+                    v-model.number="settings.uiState.kiosk.workloadIdleDays"
+                    type="number"
+                    min="0"
+                    label="Workload: ignore tickets idle (days)"
+                    hint="Excludes open tickets not updated in this many days, plus anything with Status::Backlog. 0 counts everything."
+                    persistent-hint
+                    variant="outlined"
+                    density="comfortable"
+                  />
+                </v-col>
+              </v-row>
+
+              <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mt-4 mb-2">
+                Enabled modes
+              </div>
+              <div class="d-flex flex-wrap ga-3">
+                <v-checkbox
+                  v-for="m in kioskAllModes"
+                  :key="m.id"
+                  v-model="settings.uiState.kiosk.modes[m.id]"
+                  :label="m.label"
+                  hide-details
+                  density="compact"
+                />
+              </div>
+            </v-card-text>
+          </v-card>
+        </v-container>
+      </v-window-item>
+
       <!-- Hotkeys -->
       <v-window-item value="hotkeys">
         <v-container class="py-6 config-max">
@@ -880,6 +955,15 @@ import { getTokenExpiry } from '../utils/tokenExpiry'
 import { useSettingsStore } from '../composables/useSettingsStore'
 import HotkeysSettings from './HotkeysSettings.vue'
 import localforage from 'localforage'
+
+const kioskAllModes = [
+  { id: 'today',    label: "Today's pulse" },
+  { id: 'velocity', label: '7-day velocity' },
+  { id: 'workload', label: 'Workload by assignee' },
+  { id: 'priority', label: 'Priority overview' },
+  { id: 'activity', label: 'Recent activity' },
+  { id: 'risks',    label: 'Overdue / stale / unassigned' }
+]
 import pkg from '../../package.json'
 import changelogRaw from '../../CHANGELOG.md?raw'
 import { renderMarkdown } from '../chatTools/utils'

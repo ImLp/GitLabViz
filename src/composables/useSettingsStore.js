@@ -48,6 +48,13 @@ export function useSettingsStore() {
       Object.assign(settings.uiState.view, savedData.uiState?.view || {})
       Object.assign(settings.uiState.simulation, savedData.uiState?.simulation || {})
       Object.assign(settings.uiState.hotkeys, savedData.uiState?.hotkeys || {})
+      const k = savedData.uiState?.kiosk
+      if (k) {
+        if (typeof k.refreshMinutes === 'number') settings.uiState.kiosk.refreshMinutes = k.refreshMinutes
+        if (typeof k.cycleSeconds === 'number') settings.uiState.kiosk.cycleSeconds = k.cycleSeconds
+        if (typeof k.workloadIdleDays === 'number') settings.uiState.kiosk.workloadIdleDays = k.workloadIdleDays
+        if (k.modes && typeof k.modes === 'object') Object.assign(settings.uiState.kiosk.modes, k.modes)
+      }
 
       // Backward-compat: migrate old sim* keys to the new names
       const sim = settings.uiState.simulation

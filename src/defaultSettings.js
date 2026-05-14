@@ -77,6 +77,12 @@ export const defaultSettings = () => ({
       focusMode: false // hides sidebar + banners, leaving only the graph
     },
     hotkeys: {}, // action id -> combo string; empty = use built-in defaults
+    kiosk: {
+      refreshMinutes: 5,    // 0 disables auto-refresh
+      cycleSeconds: 20,     // 0 disables auto-cycling (sticks on one mode)
+      workloadIdleDays: 60, // workload mode excludes open tickets idle longer than this (0 = include all)
+      modes: { today: true, velocity: true, workload: true, priority: true, activity: true, risks: true }
+    },
     presets: {
       custom: [] // [{ name, config }]
     },

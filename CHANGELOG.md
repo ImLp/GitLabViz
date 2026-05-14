@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.5.2] - 2026-05-14
+- Kiosk "Recent activity" mode visual overhaul. Each row now has a colored left border
+  (green for opens, indigo for closes), an icon (`mdi-plus-circle` / `mdi-check-circle`),
+  the issue iid (`#1234`), and the actor (`author.name` for opens, `closed_by.name` for
+  closes) shown with a colored circular initials avatar — hashed from the name so the
+  same person keeps a stable tone across renders without a palette map. Layout: icon ·
+  tag · iid · title · who · when, all on one line with text ellipsis. Collapses to
+  icon · tag · title · when under ~900px.
+
+## [0.5.1] - 2026-05-14
+- Kiosk workload mode now excludes backlog / stale tickets so the bars reflect actual
+  active work, not the long tail of forgotten issues. Drops anything whose effective
+  status (via `currentStatusOfRaw`) contains "Backlog" and (by default) anything that
+  hasn't been updated in 60+ days. The threshold is configurable in Configuration →
+  Kiosk → "Workload: ignore tickets idle (days)" (0 = include all). The section subtitle
+  spells out the active exclusions so the counts aren't surprising.
+
+## [0.5.0] - 2026-05-14
+- Kiosk dashboard mode for wall-mounted / always-on displays. Open with `Shift+K` (or
+  Configuration → Kiosk). Auto-refreshes data on a configurable interval (default 5 min)
+  and auto-cycles through several status modes (default 20s each). Operates on whatever
+  the current filters scope to, so you can pin a team / milestone / label and use the
+  kiosk as a focused board.
+
+  Modes (all toggleable in Configuration → Kiosk):
+  - **Today's pulse** — opened today, closed today, net change, updated today,
+    open / closed totals (big numbers).
+  - **7-day velocity** — paired created-vs-closed bar chart per weekday.
+  - **Workload by assignee** — top 12 assignees, open count, horizontal bars.
+  - **Priority overview** — open by Priority label, oldest age per bucket,
+    colored bars (blocking → red, high → orange, …).
+  - **Recent activity** — last ~20 open/close events with relative time.
+  - **Overdue / stale / unassigned** — overdue list (sorted by days late), stale list
+    (no update > 14d), unassigned + no-due-date counters.
+
+  Controls: Esc / Shift+K exit · ← → step modes · Space pause cycling · click the
+  footer dots to jump · header shows clock + next-refresh countdown + manual refresh
+  spinner.
+
 ## [0.4.6] - 2026-05-14
 - Hotkeys settings: widened the column gap (24 → 56px) and added a faint dashed rule
   between the two columns so they don't crowd in the middle.
