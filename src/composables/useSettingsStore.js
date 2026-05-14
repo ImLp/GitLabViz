@@ -52,8 +52,20 @@ export function useSettingsStore() {
       if (k) {
         if (typeof k.refreshMinutes === 'number') settings.uiState.kiosk.refreshMinutes = k.refreshMinutes
         if (typeof k.cycleSeconds === 'number') settings.uiState.kiosk.cycleSeconds = k.cycleSeconds
-        if (typeof k.workloadIdleDays === 'number') settings.uiState.kiosk.workloadIdleDays = k.workloadIdleDays
+        // Backward compat: workloadIdleDays (per-mode in 0.5.x) → staleDays (global in 0.7.x).
+        if (typeof k.staleDays === 'number') settings.uiState.kiosk.staleDays = k.staleDays
+        else if (typeof k.workloadIdleDays === 'number') settings.uiState.kiosk.staleDays = k.workloadIdleDays
+        if (typeof k.excludeBacklog === 'boolean') settings.uiState.kiosk.excludeBacklog = k.excludeBacklog
+        if (Array.isArray(k.priorityFilter)) settings.uiState.kiosk.priorityFilter = k.priorityFilter.slice()
+        if (typeof k.targetMilestone === 'string') settings.uiState.kiosk.targetMilestone = k.targetMilestone
         if (k.modes && typeof k.modes === 'object') Object.assign(settings.uiState.kiosk.modes, k.modes)
+        if (k.modeConfig && typeof k.modeConfig === 'object') {
+          for (const id of Object.keys(settings.uiState.kiosk.modeConfig)) {
+            if (k.modeConfig[id] && typeof k.modeConfig[id] === 'object') {
+              Object.assign(settings.uiState.kiosk.modeConfig[id], k.modeConfig[id])
+            }
+          }
+        }
       }
 
       // Backward-compat: migrate old sim* keys to the new names

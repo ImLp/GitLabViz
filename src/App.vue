@@ -108,12 +108,14 @@
         :update-status="updateStatus"
         :error="error"
         :initial-tab="configInitialTab"
+        :all-milestones="allMilestones"
         @close="activePage = 'main'"
         @save="handleConfigSave"
         @tab-change="configInitialTab = $event || 'gitlab'"
         @clear-data="clearData"
         @update-source="handleUpdateSource"
         @clear-source="handleClearSource"
+        @open-kiosk="activePage = 'kiosk'"
       />
       <ChatToolsPage
         v-else-if="isElectron && activePage === 'chattools'"
@@ -122,10 +124,16 @@
       />
       <KioskPage
         v-else-if="activePage === 'kiosk'"
-        :nodes="filteredNodes"
+        :nodes="nodes"
         :loading="loading"
         :last-updated="lastUpdated"
         :on-refresh="handleRefreshClick"
+        :mode="kioskMode"
+        :view-param="viewParam"
+        @update:mode="kioskMode = $event"
+        @update:view-param="setView"
+        @apply-filter="applyKioskFilter"
+        @open-config="configInitialTab = 'kiosk'; activePage = 'config'"
         @close="activePage = 'main'"
       />
       <v-container v-else fluid class="pa-0 fill-height position-relative">
@@ -295,9 +303,10 @@ const svnUrl = computed({
   set: v => { if (primarySvnRepo.value) primarySvnRepo.value.url = v }
 })
 
-const activePage = ref('main') // 'main' | 'config' | 'chattools'
+const activePage = ref('main') // 'main' | 'config' | 'chattools' | 'kiosk'
 const configInitialTab = ref('gitlab')
-const { viewParam, setView } = useHashRouting({ activePage, configInitialTab })
+const kioskMode = ref('today')
+const { viewParam, setView } = useHashRouting({ activePage, configInitialTab, kioskMode })
 const loading = ref(false)
 const loadingMessage = ref('')
 const error = ref('')
@@ -761,7 +770,8 @@ onMounted(async () => {
   await initSettings()
 
   // If a shared view is present in the URL, apply it AFTER local settings so the link wins.
-  if (viewParam.value) applyViewFromParam(viewParam.value)
+  // Skip when on the kiosk page — its kv args (paused / cycle / refresh) aren't share-codec keys.
+  if (viewParam.value && activePage.value === 'main') applyViewFromParam(viewParam.value)
 
   // Keep sidebar "data age" fresh.
   nowTick.value = Date.now()
@@ -897,6 +907,18 @@ const reflowGraph = () => {
 }
 
 const showHotkeyHelp = ref(false)
+
+// Apply a filter patch coming from kiosk deep-clicks. Resets filters first so the deep
+// link is unambiguous, then merges the patch (including nested dateFilters) and exits to
+// the main graph view.
+const applyKioskFilter = (patch) => {
+  if (!patch || typeof patch !== 'object') return
+  resetFilters()
+  const { dateFilters, ...rest } = patch
+  Object.assign(settings.uiState.filters, rest)
+  if (dateFilters) Object.assign(settings.uiState.filters.dateFilters, dateFilters)
+  activePage.value = 'main'
+}
 
 const setAllSections = (open) => {
   settings.uiState.ui.showFilters = open
@@ -1076,18 +1098,24 @@ const applyViewFromParam = (param) => {
 // Hashchange (back/forward, paste-in): keep state in sync with URL.
 watch(viewParam, (v) => {
   if (isApplyingViewFromUrl) return
+  // Kiosk uses viewParam for its own kv args (paused / cycle / refresh) which aren't
+  // valid share-codec keys — feeding them into decodeView triggers spurious warnings.
+  if (activePage.value !== 'main') return
   const cur = encodeView(getCurrentConfigSnapshot())
   if (v === cur) return // already in sync
   if (v) applyViewFromParam(v)
 })
 
-// State changes: encode + push to URL (debounced, replaceState only).
+// State changes: encode + push to URL (debounced, replaceState only). Only writes
+// when on the main page — kiosk owns viewParam there for its own kv args.
 watch(
   () => [settings.uiState.filters, settings.uiState.view],
   () => {
     if (isApplyingViewFromUrl) return
+    if (activePage.value !== 'main') return
     if (viewWriteTimer) clearTimeout(viewWriteTimer)
     viewWriteTimer = setTimeout(() => {
+      if (activePage.value !== 'main') return
       setView(encodeView(getCurrentConfigSnapshot()))
     }, 250)
   },

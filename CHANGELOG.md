@@ -1,318 +1,276 @@
 # Changelog
 
+## [0.10.7] - 2026-05-14
+- Fix: kiosk now operates on the full ticket set instead of inheriting the main sidebar's filters. Click-throughs in earlier sessions left `includeClosed: false` (or other) on the sidebar; closed tickets were never reaching the kiosk dashboard. Kiosk owns its own filters (target milestone / priority / stale / backlog) so the sidebar doesn't need to scope it any more.
+
+## [0.10.6] - 2026-05-14
+- Fix: kiosk Priority filter was hiding closed tickets that had no Priority:: label, making the closed counts and velocity / activity feeds collapse. The filter now applies to open tickets only — same treatment as the Stale and Exclude-Backlog filters — so closed work still shows up as historical events.
+
+## [0.10.5] - 2026-05-14
+- Kiosk polish pass:
+  - Every big number now uses thousands separators (`1,799` instead of `1799`) so totals are easier to read from across the room.
+  - Today's pulse, Target stats, and Risks cards each get a small `mdi-` icon in the corner (plus / check / trending / pencil / sigma / account-off / calendar-question) for instant scanning.
+  - Workload rows now show a colored initials avatar next to each name (same hashed-color pattern as the activity feed) so people are recognizable without reading.
+  - Priority / Status / Type / Hot labels / Aging bar lists got a `% of total` side column so the relative share of each bucket is visible alongside the absolute count.
+  - Velocity highlights the rightmost "Today" bar with a dashed primary border so the current day reads instantly.
+  - Empty states are friendlier: 48px `mdi-` icon + centered text (e.g., `No blockers — clear sailing` with `mdi-check-decagram-outline`).
+
+## [0.10.4] - 2026-05-14
+- Kiosk global filters (Stale threshold, Exclude Backlog, Priority filter, Target milestone) now affect **every** kiosk screen — including target focus, burnup chart, milestone progress, today's pulse, velocity, recent activity feed, recently closed, blockers, stale WIP, etc. Previously stale + backlog only applied to count modes. Config hints updated to reflect the new global scope.
+
+## [0.10.3] - 2026-05-14
+- Burnup chart overhaul:
+  - **Smart window** — anchors to the milestone's `start_date` only when it's within 2× the configured window (default 90 days, configurable). Otherwise rolls back from the due date, or falls back to recent activity. Tickets that pre-date the window become a Day-1 baseline so the chart starts at meaningful counts instead of zero.
+  - **Ideal-burn guideline** — dashed white line from `(start, baseline-closed)` to `(due, scope)`, the visual target a developer can compare the green line against from across the room.
+  - **Risk-zone fill** — open work area between scope and closed is amber by default; turns red when closures lag the ideal line by 15+ tickets, so "we're behind" jumps out.
+  - **On-track / behind ideal burn** label in the legend.
+- Note: chart lines are reconstructed from each ticket's `created_at` / `closed_at` — there are no daily historical snapshots, so retroactive label / milestone changes can't be reconstructed.
+
+## [0.10.2] - 2026-05-14
+- Burnup chart now anchors the X axis to the earliest ticket creation instead of the milestone's `start_date`. Re-used / old milestones often have a `start_date` years before the first real ticket lands, which left 99% of the chart flat at zero. The "Due" marker label is also offset below the "Today" label so they don't sit on top of each other when both fall near the chart's right edge.
+
+## [0.10.1] - 2026-05-14
+- New global kiosk **Priority filter** (Configuration → Kiosk → Active filter). Pick any combination of Blocking / High / Medium / Low / Other / No priority — when set, every kiosk mode counts only those tickets. Pair it with the target milestone for a "blocking work for v0.39" wall. Header shows an orange `Blocking + High` chip when active, and deep-link click-throughs carry the filter into the main graph too.
+
+## [0.10.0] - 2026-05-14
+- Target milestone screen: **rich segmented progress bar**. Three segments — green = closed, grey = open from the original scope (tickets created on/before milestone start_date), striped amber = scope creep (tickets added after start). Tiny legend underneath shows the counts. Falls back to a 2-segment view when the milestone has no `start_date`.
+- New kiosk mode **Milestone burnup** — classic agile cumulative flow chart. Two lines (indigo "scope" / green "closed") with the open work shaded between them, vertical "Today" and "Due" markers, and date / count axes. Built as inline SVG so it scales cleanly to any kiosk screen.
+
+## [0.9.3] - 2026-05-14
+- Fix: false "Share URL: Unknown URL key 'paused' — ignored." warning that popped up when entering kiosk mode. The main view's share-codec was running on kiosk's URL args (`paused` / `cycle` / `refresh`) which don't belong to it; gated decode + encode on `activePage === 'main'`.
+
+## [0.9.2] - 2026-05-14
+- New kiosk mode **Stale WIP** — open tickets in "In progress" / "Doing" / "WIP" status that haven't been updated in N days (default 5). Amber theme, sorted by longest-idle first. Great for surfacing forgotten work in stand-ups.
+- **Workload by assignee** bars are now **stacked by priority** (Blocking / High / Medium / Low / Other / No priority), so you can see at a glance who's drowning in critical work vs. routine items. Toggle off in Configuration → Kiosk if you prefer plain bars.
+- **Status breakdown** now shows the **average idle days** per status — surfaces review / QA queue bottlenecks (e.g., "Ready for Review: 35 · avg idle 8d"). Red when > 14 days.
+- **Blockers** mode: new "Only show blockers ≤ N days old" config — pair it with the default list to flip between fresh-blockers and the legacy long-tail.
+
+## [0.9.1] - 2026-05-14
+- Target milestone screen redesigned:
+  - **ETA banner** — projects when the milestone will land using the last 14 days of closure / add rate. Color-coded: green "on track" with slack-days, red "X days late", amber "stalled" when scope is growing faster than closures, gold trophy "milestone complete", grey "no due date".
+  - Stat cards now have rate sub-lines (closed last 14d · added last 14d · closed/wk vs added/wk).
+  - Two new side-by-side panels: **Recently closed** and **Recently added** within the milestone (last 14 days, 6 each, clickable to open in GitLab).
+  - Replaces the previous "Top open in milestone" list — use the Blockers / Activity modes for that.
+
+## [0.9.0] - 2026-05-14
+- When a target milestone is set, **the whole kiosk is now scoped to that milestone**. Today's pulse, velocity, workload, priority, status, type, hot labels, aging, activity, recently closed, blockers, and risks all only count tickets in that milestone. Milestone progress and the Target focus mode keep showing the full picture.
+- The kiosk header shows a primary-colored flag chip with the active milestone name so it's obvious what's being filtered.
+- Clicking through to the main graph from kiosk now also carries the milestone filter forward.
+
+## [0.8.4] - 2026-05-14
+- New kiosk mode **Hot labels** — plain labels appearing on tickets with any activity in the last 24h (configurable). Shows what topics the team is actually working on right now. Click a label to filter the graph by it.
+
+## [0.8.3] - 2026-05-14
+- Kiosk Recent activity: the right-side columns (comments, assignee, time) now line up neatly across rows instead of wobbling when a ticket has no comments or no assignee.
+
+## [0.8.2] - 2026-05-14
+- Configuration → Kiosk now has an "Open kiosk" button so you can preview the dashboard without leaving the page or remembering the hotkey.
+
+## [0.8.1] - 2026-05-14
+- Fix: graph legend no longer shows a horizontal scrollbar when label texts are long.
+
+## [0.8.0] - 2026-05-14
+- Two new kiosk modes (13 total):
+  - **Blockers** — open tickets with blocking/critical priority, critical severity, or "blocked" status/label. Oldest first, red theme.
+  - **Recently closed** — celebration view of tickets closed in the last 48h (configurable).
+
+## [0.7.7] - 2026-05-14
+- Kiosk config tab polished: grouped sections (Timing / Active filter / Target), per-mode cards with icons, "Enable all" / "Disable all" buttons, enabled count in the header.
+
+## [0.7.6] - 2026-05-14
+- Kiosk: pin a target milestone (Configuration → Kiosk).
+  - New **Target milestone** mode with big completion %, due-date countdown, and top open tickets.
+  - The Milestone progress mode pins it to the top.
+
+## [0.7.5] - 2026-05-14
+- Kiosk: new "Exclude Status::Backlog" setting (on by default) — drops backlog tickets from workload / priority / status / type / aging / risks.
+
+## [0.7.4] - 2026-05-14
+- Kiosk header: gear icon opens Configuration → Kiosk directly.
+
+## [0.7.3] - 2026-05-14
+- Kiosk Recent activity also shows "updated" events (comments, label changes, edits) and a comment-count badge per row. Toggleable in the kiosk config.
+
+## [0.7.2] - 2026-05-14
+- Kiosk: click the refresh pill in the header to refresh manually and reset the countdown.
+
+## [0.7.1] - 2026-05-14
+- Kiosk header clock now shows weekday, date, and timezone next to the time.
+
+## [0.7.0] - 2026-05-14
+- Kiosk: global "stale" filter (default 60 days) — excludes long-idle tickets from workload / priority / status / type counts. Set to 0 to count everything.
+- Four new kiosk modes: **Status breakdown**, **Type breakdown**, **Milestone progress**, **Aging buckets**.
+- Per-mode options (velocity days window, workload top-N, activity feed size, etc.).
+- Configuration → Kiosk redesigned with per-mode cards.
+
+## [0.6.0] - 2026-05-14
+- Kiosk: shareable URLs (`#/kiosk/<mode>/paused=1/cycle=10/refresh=2`). Mode, pause state, and cycle/refresh overrides all live in the URL.
+- Most rows and numbers in kiosk are clickable — deep-link into the main graph with the right filter applied, or open the issue in GitLab.
+
 ## [0.5.2] - 2026-05-14
-- Kiosk "Recent activity" mode visual overhaul. Each row now has a colored left border
-  (green for opens, indigo for closes), an icon (`mdi-plus-circle` / `mdi-check-circle`),
-  the issue iid (`#1234`), and the actor (`author.name` for opens, `closed_by.name` for
-  closes) shown with a colored circular initials avatar — hashed from the name so the
-  same person keeps a stable tone across renders without a palette map. Layout: icon ·
-  tag · iid · title · who · when, all on one line with text ellipsis. Collapses to
-  icon · tag · title · when under ~900px.
+- Kiosk Recent activity redesigned: colored borders, icons, issue numbers, and a circular initials avatar for the actor.
 
 ## [0.5.1] - 2026-05-14
-- Kiosk workload mode now excludes backlog / stale tickets so the bars reflect actual
-  active work, not the long tail of forgotten issues. Drops anything whose effective
-  status (via `currentStatusOfRaw`) contains "Backlog" and (by default) anything that
-  hasn't been updated in 60+ days. The threshold is configurable in Configuration →
-  Kiosk → "Workload: ignore tickets idle (days)" (0 = include all). The section subtitle
-  spells out the active exclusions so the counts aren't surprising.
+- Kiosk workload mode now excludes backlog and long-idle tickets so the bars reflect active work.
 
 ## [0.5.0] - 2026-05-14
-- Kiosk dashboard mode for wall-mounted / always-on displays. Open with `Shift+K` (or
-  Configuration → Kiosk). Auto-refreshes data on a configurable interval (default 5 min)
-  and auto-cycles through several status modes (default 20s each). Operates on whatever
-  the current filters scope to, so you can pin a team / milestone / label and use the
-  kiosk as a focused board.
-
-  Modes (all toggleable in Configuration → Kiosk):
-  - **Today's pulse** — opened today, closed today, net change, updated today,
-    open / closed totals (big numbers).
-  - **7-day velocity** — paired created-vs-closed bar chart per weekday.
-  - **Workload by assignee** — top 12 assignees, open count, horizontal bars.
-  - **Priority overview** — open by Priority label, oldest age per bucket,
-    colored bars (blocking → red, high → orange, …).
-  - **Recent activity** — last ~20 open/close events with relative time.
-  - **Overdue / stale / unassigned** — overdue list (sorted by days late), stale list
-    (no update > 14d), unassigned + no-due-date counters.
-
-  Controls: Esc / Shift+K exit · ← → step modes · Space pause cycling · click the
-  footer dots to jump · header shows clock + next-refresh countdown + manual refresh
-  spinner.
+- New **Kiosk dashboard** mode for wall-mounted / always-on displays. Open with `Shift+K`. Auto-refreshes data and cycles through summary screens. Six initial modes: Today's pulse, 7-day velocity, Workload by assignee, Priority overview, Recent activity, Overdue / stale / unassigned.
 
 ## [0.4.6] - 2026-05-14
-- Hotkeys settings: widened the column gap (24 → 56px) and added a faint dashed rule
-  between the two columns so they don't crowd in the middle.
+- Hotkeys settings: wider gap and a divider between the two columns.
 
 ## [0.4.5] - 2026-05-14
-- Fix: `C` / `Shift+C` / `N` cycle hotkeys now wrap around at the end instead of getting
-  stuck. The grouping list contains v-select subheader items (`{ type: 'subheader' }`)
-  with no `.value`; the old `cycleValue` would land on one, return the subheader object
-  itself, and from that point on no further mode would ever match — looked like the cycle
-  "stopped at the end". `cycleValue` now filters those out before iterating.
-- New hotkeys: `]` expand all sidebar sections, `[` collapse all sidebar sections
-  (Templates, Filters, Display, Advanced simulation).
+- Fix: cycle hotkeys (color / grouping / link mode) now wrap around at the end.
+- New hotkeys: `]` expand all sidebar sections, `[` collapse all.
 
 ## [0.4.4] - 2026-05-14
-- Focus mode now shows a tiny faded `×` in the bottom-left corner so it's discoverable how
-  to exit when you forget the `F` hotkey. It brightens on hover and disappears as soon as
-  focus mode is off.
+- Focus mode now shows a small `×` in the bottom-left corner to exit without remembering the hotkey.
 
 ## [0.4.3] - 2026-05-14
-- The `L` hotkey (hide / show legend) now also hides the bottom-right scale bar overlay
-  so the canvas is left completely bare instead of just losing the legend panel.
+- The `L` hotkey now also hides the bottom-right scale bar, leaving the canvas completely bare.
 
 ## [0.4.2] - 2026-05-14
-- Hotkeys settings tab is much more compact: groups now flow into two CSS columns
-  (auto-balanced), rows are indented under their group header, and per-row vertical
-  padding is tightened so the whole list fits without scrolling on a typical screen.
-  Falls back to a single column under ~700px width.
+- Hotkeys settings tab is more compact: two-column layout, indented rows.
 
 ## [0.4.1] - 2026-05-14
-- Hotkeys are now grouped (Layout / Graph view / View modes / App) in both the
-  Configuration → Hotkeys tab and the `?` cheatsheet popup, so related shortcuts sit
-  together instead of scrolling as one flat list.
+- Hotkeys grouped by category (Layout / Graph view / View modes / App) in the settings tab and `?` cheatsheet.
 
 ## [0.4.0] - 2026-05-14
-- Keyboard shortcuts. New `useHotkeys` composable + Configuration → **Hotkeys** tab where
-  every binding is listed, rebindable (click → press combo), resettable, and clearable.
-  Conflicts are flagged. Bindings persist in `uiState.hotkeys` (overrides only) so F5 keeps
-  them and unset actions fall back to built-in defaults. Press `?` anywhere for a quick
-  cheat-sheet popup. Hotkeys are ignored while typing in inputs and while the Config /
-  ChatTools page is open.
-
-  Defaults:
-  - `B` toggle sidebar
-  - `F` focus mode (hide sidebar + banners, show only the graph) — also hides
-    token-expiry / sample-data banners
-  - `L` hide / show legend entirely, `Shift+L` collapse / expand it
-  - `P` pause / resume physics, `R` recenter, `Shift+F` fit to screen,
-    `Shift+R` reflow (restart physics)
-  - `C` cycle color mode, `Shift+C` cycle grouping, `N` cycle link mode,
-    `U` toggle "hide unlinked", `Shift+X` reset filters
-  - `T` cycle theme, `,` open Configuration, `?` show shortcuts
+- **Keyboard shortcuts**. Configuration → Hotkeys tab to view and rebind. Press `?` anywhere for a cheatsheet.
+- Defaults: `B` sidebar, `F` focus mode, `L` hide legend, `Shift+L` collapse legend, `P` physics, `R` recenter, `Shift+F` fit, `Shift+R` reflow, `C` color mode, `Shift+C` grouping, `N` link mode, `U` hide unlinked, `Shift+X` reset filters, `T` theme, `,` open Configuration, `?` shortcuts.
 
 ## [0.3.39] - 2026-05-14
-- Reflow Graph button now uses `mdi-atom` instead of `mdi-refresh` so it doesn't visually
-  clash with the data Refresh button two rows above. Tooltip clarified to
-  "Reflow Graph (restart physics)".
+- Reflow Graph button uses a clearer icon (atom) so it doesn't look like the data Refresh button.
 
 ## [0.3.38] - 2026-05-14
-- Fix: graph disappeared / flickered while the sidebar was opening or closing. Setting
-  `canvas.width/height` clears the canvas, and the resize was double-deferred through two
-  `requestAnimationFrame` hops, so the canvas stayed blank for ~2 frames every resize tick
-  during Vuetify's drawer transition. The resize now runs synchronously inside the
-  `ResizeObserver` callback (before paint) and redraws immediately, and we skip the work
-  entirely when the size hasn't actually changed.
+- Fix: graph no longer disappears / flickers when opening or closing the sidebar.
 
 ## [0.3.37] - 2026-05-14
-- Graph legend is now collapsible: click the chevron next to "Legend" to fold it down to
-  just the title row (handy when the swatch list is long and covering nodes). The
-  collapsed/expanded state is persisted in `uiState.view.legendCollapsed` so F5 keeps it.
+- Graph legend is now collapsible — click the chevron next to "Legend".
 
 ## [0.3.36] - 2026-05-13
-- Filter dropdown UX polish: width pinned per-dropdown via JS (no more jitter as long
-  labels scroll into view; Vuetify virtualizes the list so CSS-only sizing didn't help),
-  taller menu (~13 rows visible), tighter row height, subtle border + drop shadow, zebra
-  striping for horizontal scanability.
-- Sensible date-input defaults: picking "Before" / "After" / "Between" / "Last X Days"
-  pre-fills the date fields (past 7 days for Created/Updated, next 7 days for Due Date)
-  so they don't render as blank `dd/mm/yyyy`.
-- Active-filter affordance: focused field gets a 2px primary outline, non-focused filters
-  fade to ~35% opacity so the eye lands on the input you're working with.
-- Date-mode dropdown rows are now icon-coloured (Before / After / Between / Last X Days)
-  matching the rest of the filter palette.
+- Filter dropdowns: pinned width (no more jitter), taller menu, zebra striping.
+- Date inputs auto-fill sensible defaults when picking Before / After / Between / Last X Days.
+- Active filter field highlighted, others dimmed.
+- Colored icons on date-mode dropdown rows.
 
 ## [0.3.35] - 2026-05-13
-- Filter dropdowns now sort options by ticket count (descending), so frequently-used values
-  surface first and unused / deprecated ones sink to the bottom. Applied to Status, Labels
-  (Include/Exclude), Author, Assignee, Participants, Milestone, Priority, Type. Sentinels
-  (`@me`, `@none`, `@unassigned`, `@deactivated`, subheaders) stay pinned at the top.
-  Categorical dropdowns with semantic order (Subscribed, MR, Due, Spent, Budget, Estimate,
-  Tasks) keep their existing order.
-- Status dropdown: dedicated icons (e.g. `mdi-eye-outline` for "Ready for Review") are only
-  shown when the status is actually used in the current data. Unused standard statuses get
-  a generic muted dot, so canonical-but-unused names don't outshine project-specific ones.
-  Avoids the GitLab-quirk where "Ready for Review" (standard, often empty) and "For Review"
-  (custom, actually used) competed visually for the same slot.
-- `currentStatusOfRaw()` returns ONLY the raw value present on the ticket (`status_display`
-  / `work_item_status` / `Status::` scoped label) — no closed→Done / opened→To do fallback.
-  Tickets without an explicit status simply don't appear under any status (in the dropdown,
-  the filter, the legend, or the "Group by Status" graph).
+- Filter dropdowns sort by ticket count — frequently-used values first.
+- Status dropdown: dedicated icons only for statuses actually used in the data.
+- Tickets without an explicit status no longer fall back to "Done" / "To do" — they don't appear under any status.
 
 ## [0.3.34] - 2026-05-13
-- Fix #16649 (Status filter showed nothing for "In progress" / "On Hold/Blocked" / etc.):
-  the REST `/projects/:id/issues` endpoint never returns work-item status, and the GraphQL
-  enrichment pass wasn't requesting it. Probe `Issue.status { name }` and (when supported)
-  fetch via `project.issues(iids:)` — counts in this project's fixture went from 1798 "To do"
-  + 154 "Done" + 40 "Backlog" to a real distribution (1486 / 163 / 112 / 73 / 152 / 4).
-  Previously, `Query.nodes(ids:)` was used for the bulk lookup but isn't exposed on
-  self-managed installs ("Field 'nodes' doesn't exist on type 'Query'"); switched to
-  `project.issues(iids:)` which is universally supported. Restricted-introspection setups
-  also work now (probe-based capability detection always runs, not just when introspection
-  fails).
-- Status filter, dropdown, graph color and group-by-Status now share a single
-  `currentStatusOfRaw()` helper that returns ONLY the raw value present on the ticket
-  (`status_display` / `work_item_status` / `Status::` scoped label). No state-based
-  fallbacks — a ticket with no explicit status simply doesn't appear under any status.
-- Filter dropdowns gained per-row ticket counts. Counts are **contextual** (GitLab-style):
-  each dropdown's numbers reflect all OTHER active filters, so picking Author=X immediately
-  narrows Status / Priority / Milestone / etc. counts to that author's tickets — but the
-  Author dropdown itself stays unfiltered so deselection / multi-select still makes sense.
-- Filter dropdown rows now have varied per-option icons + semantic colors (success / info /
-  warning / error / muted) for Status, Priority, Type, Milestone, Subscribed, Merge Requests,
-  Due, Time spent, Budget, Estimate bucket, Tasks, and the Created / Updated / Due Date
-  mode pickers. Previously many rows shared one icon (e.g. estimate buckets all `mdi-timer-sand`).
-- Date-range filters auto-fill sensible defaults when a mode is picked: past-dated dimensions
-  (Created / Updated) default to the last 7 days, future-dated (Due Date) to the next 7 days.
-  No more empty `dd/mm/yyyy` inputs that silently invalidate the filter.
-- "Sample data" notice promoted from a small inline alert to a top app bar matching the
-  token-expired banner style — much harder to miss when running without GitLab configured.
-- GitLab URL config accepts shorthand: `gitlab.example.com` → `https://gitlab.example.com/api/v4`.
-  Preserves `http://`, custom ports, sub-paths, and the existing `/api/vN` suffix; idempotent.
-  6 new tests for `normalizeGitLabApiBaseUrl`.
-- "Create token" link warns to bump the expiration to the maximum (GitLab silently caps PAT
-  prefill URLs to ~30 days; the `expires_at` query param is ignored upstream).
-- Refactored the 250-line inline filter into `passesFilters(node, skip)` — single source of
-  truth used by both `filteredNodes` and `filterCounts`. Removes drift risk and dedupes the
-  date-range branches.
-- Dev-only debug shortcut `Ctrl+Shift+E` exports the current graph + filter state to
-  `gitlabviz-export-<timestamp>.unittestdata.json`. Stripped from production builds
-  (`import.meta.env.DEV`-gated). Files matching `*.unittestdata.json` are gitignored and
-  auto-discovered by a new fixture-backed regression suite (`useGraphDerivedState.fixture.test.js`).
-  The suite runs ~30 dynamic assertions per fixture against every filter dimension,
-  predicates derived from the data so counts never need to be hardcoded.
-- 5 new tests in total this release.
+- Fix: Status filter showed nothing for "In progress" / "On Hold/Blocked" / etc. on self-managed GitLab installs.
+- Filter dropdowns show per-row ticket counts that react to the other active filters.
+- Status / Priority / Type / Milestone / etc. dropdowns get distinct colored icons.
+- Date-range filters auto-fill sensible defaults.
+- "Sample data" notice promoted to a top app bar.
+- GitLab URL config accepts shorthand (`gitlab.example.com`).
+- "Create token" link warns to bump expiration to the maximum.
 
 ## [0.3.33] - 2026-05-13
-- Status filter: always lists all 7 standard GitLab work-item statuses (`To do`, `In progress`, `Ready for Review`, `On Hold/Blocked`, `Done`, `Won't do`, `Duplicate`) plus any project-specific custom statuses from the loaded data. Previously only statuses present in currently-loaded issues were filterable.
-- Group / Color by "Label" now excludes scoped labels (e.g. `Priority::High`, `Type::Bug`, `Component::core engine`) — those have their own dedicated grouping modes. New `isScopedLabel()` helper in `utils/scopedLabels.js`.
-- URL aliases the internal value `tag` to `label` for `color=` and `group=` (UI already calls it "Label"). Decoding accepts both `label` and `tag` so existing URLs still work.
-- 43 new unit tests for the URL share codec covering encode/decode roundtrip, percent-encoding, unicode/emoji, validation, warnings, and edge cases (legacy `?`/`&` rejection, malformed segments, invalid enums, etc.).
+- Status filter always lists all 7 standard GitLab work-item statuses plus any project-specific ones.
+- "Group / Color by Label" excludes scoped labels (use the dedicated Priority / Type / Component modes).
 
 ## [0.3.32] - 2026-05-13
-- Fix: when grouping by assignee + filtering by specific assignees, multi-assignee tickets were spawning clones in EVERY co-assignee's group (incl. people not in the filter). Clones are now intersected with the active assignee filter (handles `@me`, `@unassigned`, `@deactivated` correctly).
-- URL share parser: drops legacy `?` / `&` syntax (no backward compatibility) — clearly errors out if such a URL is opened.
+- Fix: grouping by assignee + filtering by specific assignees no longer spawns clones in every co-assignee's group.
 
 ## [0.3.31] - 2026-05-13
-- URL share format: switched from query-string (`?key=val&key=val`) to path-style segments (`#/key=val/key=val`) so the URL reads cleanly without `?` or `&` and matches the existing `#/config/...` route style.
+- Shareable view URL format switched to path-style segments for cleaner URLs.
 
 ## [0.3.30] - 2026-05-13
-- Shareable views via URL: the address bar now always reflects the current filters + view (color mode, grouping, link mode, etc.). Copy the URL to share your exact view.
-- Human-readable params (e.g. `#/group=assignee/color=priority/label=Bug,Critical/due=overdue`). Defaults are omitted to keep URLs short.
-- Opening a shared URL applies the encoded view on top of local settings — back/forward navigation also restores prior views.
+- Shareable views: the URL always reflects the current filters + view. Copy and share.
+- Defaults are omitted from URLs to keep them short.
 
 ## [0.3.29] - 2026-05-13
-- Type filter now has a "(No type)" entry — same fix as priority/milestone in 0.3.27 (tickets without a Type scoped label were unfindable).
-- Audited the rest of the filters: Status defaults to "To do" when missing so every ticket has a value; Author/Participants are always present; Subscription / MR / Due / Spent / Budget / Estimate / Task already expose explicit "none" options. Labels (Include) intentionally left as-is (different multi-value semantics).
+- Type filter now has a "(No type)" entry for tickets without a Type scoped label.
 
 ## [0.3.28] - 2026-05-13
-- Multi-assignee tickets are now treated correctly across the app (filter fix in 0.3.26 was only half the story):
-  - Grouping by assignee duplicates a multi-assignee ticket into each assignee's group/cluster (same cloning pattern already used for tag / priority / type / scoped labels).
-  - Color mode "assignee" colors each clone by its own assignee.
-  - Legend / group counts include the ticket in every assignee's bucket.
-  - Display label and copy summary list all assignees, not just the first.
-  - New `Duplicate multi-assignee tickets` toggle in the sidebar (shown only when grouping by assignee) — defaults on; disable to fall back to the legacy single-clone behavior.
-- Shared helper `src/utils/issueFields.js#getAssigneeNames` used by both `useGraphDerivedState` and `IssueGraph` (no more duplicated singular/plural fallback logic).
+- Multi-assignee tickets handled properly across grouping, coloring, legend, and labels.
+- Optional sidebar toggle to fall back to single-assignee clones.
 
 ## [0.3.27] - 2026-05-13
-- Fix #16648 (no way to filter tickets with no priority/milestone): Milestone and Priority filters now have a "(No milestone)" / "(No priority)" entry (`@none` sentinel, same pattern as Unassigned) so tickets without one can be found.
+- Milestone and Priority filters now have "(No milestone)" / "(No priority)" entries.
 
 ## [0.3.26] - 2026-05-13
-- Fix #16647 (filter by assignee on multi-assignee tickets): Assignee dropdown and filter were only looking at `_raw.assignee` (the first/legacy assignee). The filter now uses the full `_raw.assignees` array and matches if ANY assignee on the ticket matches the selected filter. The Assignee dropdown also lists every co-assignee.
+- Fix: filtering by assignee on multi-assignee tickets now matches any assignee on the ticket.
 
 ## [0.3.25] - 2026-05-13
-- GitLab token expiry detection: on startup the app now introspects the PAT (`/personal_access_tokens/self`) to read scopes + `expires_at`.
-- Top warning banner when the token expires in ≤7 days or is already expired; click → opens Config → GitLab tab.
-- Config → GitLab alert shows expiry date and remaining days; turns warning (≤14d) and error (expired).
-- When the token is expired and only sample data is loaded, a full-screen **TOKEN EXPIRED** message replaces the demo (with a "Create new token" CTA). Real cached data stays browsable.
-- "Create token" button now uses `api` scope in the prefilled form (full read + write) instead of `read_api,read_user`.
-- Fix: "Create token" button click was swallowed by `v-text-field`'s `append-inner` slot — moved next to the field so the link works.
-- Fix: starting a fetch now immediately clears any sample/mock data so it's not visible during loading.
+- Warning banner when the GitLab token is about to expire or has already expired.
+- Configuration shows token expiry date and remaining days.
+- "Create token" button defaults to full `api` scope.
 
 ## [0.3.24] - 2026-05-13
-- Deps: bump to Vuetify 4, Vite 8, Electron 42, jsdom 29, Vitest 4.1, plugin-vue 6, plus latest patches; 0 known vulnerabilities (was 27).
-- Vuetify 4 migration: `v-row dense` → `density="compact"`, `justify="end"` → utility class, select/autocomplete `item.raw` → `item` (v4 unwraps to raw).
-- Config → GitLab: simplified token UX — "Create token" button inline in the PAT field (prefilled form), removed the long instructions block.
-- Fix: `loadData` race — set loading flag before the first await; refuse to start while another load is running, including SVN cache updates.
-- Fix: `IssueGraph` save-transform timeout was not cleared on unmount (could write settings after teardown).
-- Fix: non-Error rejections no longer log "undefined" in error/cache/SVN/links paths.
+- Dependency bump (Vuetify 4, Vite 8, Electron 42, …) — 0 known vulnerabilities.
+- Simplified "Create token" UX in Configuration → GitLab.
+- Fix: occasional duplicate / racing data loads.
 
 ## [0.3.23] - 2026-01-14
-- Filters: Status dropdown is now derived from loaded issues (no longer hardcoded), fixing missing statuses like "On Hold/Blocked".
+- Status dropdown now reflects the actual statuses present in loaded data (fixes missing "On Hold/Blocked", etc.).
 
 ## [0.3.22] - 2026-01-14
-- Legend: customizable per-item colors (saved in presets). Click a legend swatch to pick a color, with a Reset option to restore defaults.
-- Priorities: default palette now matches severity (red → green).
+- Click a legend swatch to pick a custom color per item; Reset restores defaults.
+- Priorities use a severity-aligned palette (red → green).
 
 ## [0.3.21] - 2026-01-14
-- Graph: removed the "force show closed issues regardless of filters" behavior (closed issues now strictly respect “Include closed issues”), preventing layout issues caused by hidden-but-still-present nodes.
+- Closed issues now strictly respect "Include closed issues" — no more layout artifacts from hidden-but-present nodes.
 
 ## [0.3.20] - 2026-01-14
-- GitLab sync: incremental refresh now includes state transitions (open/closed) by fetching updated issues with `state=all`; always updates issues already in cache/graph regardless of `gitlabClosedDays` (which only affects adding new closed issues).
-- Fix: Graph grouping could collapse into one big `default` group after time/tab switching, because the "Group" mode value could sometimes become an object (instead of a string) and fail comparisons like `groupBy === 'author'`. We now normalize grouping mode to a safe string before computing group keys/links/stats.
+- Incremental refresh now picks up state transitions (open ↔ closed).
+- Fix: grouping no longer occasionally collapses everything into a single "default" group after tab switching.
 
 ## [0.3.19] - 2026-01-09
-- Graph perf: speed up physics overlap resolution on large graphs; faster zoomed-out drawing (LOD) + cached group smudges; faster group label toggling.
-- improved frame fit
-- label group positioning now deterministic
-- autocomplete for color and group now
-- drawing all labels for all issues now - resulting in issues being multiple times on screen
-- added Epic preset
-- fixed Epics not working
-- improved sync using REST again for speed
-- added 'Unassigned' as filter option
-- added group label setting in the legend window
-- fixed browser warnings
+- Faster physics + zoomed-out drawing on large graphs.
+- Improved frame fit; deterministic group label positioning.
+- Autocomplete for color and group selectors.
+- New "Unassigned" filter option; Epic preset added.
 
 ## [0.3.18] - 2026-01-09
-- GitLab sync: incremental refresh (only fetch updated issues) with a 12h overlap window to avoid clock/timezone drift; only refresh links for changed issues.
+- Incremental GitLab refresh — only fetch updated issues (with a 12h overlap to avoid drift).
 
 ## [0.3.17] - 2026-01-09
-- added more filters + color modes for due date / time tracking / tasks
-- filters: merge request presence, participants, due status, spent, budget, estimate buckets, task completion
-- show non-active user states in user selectors when available
-- user selectors: add special entries "Me", "Deactivated users" section, and "Any deactivated user"
+- New filters and color modes: due date, time tracking, tasks.
+- More filter dimensions: MR presence, participants, due status, spent, budget, estimate, task completion.
+- User selectors show non-active states and "Me" / "Deactivated users" entries.
 
 ## [0.3.16] - 2026-01-08
-- fixed scoped labels
-- added start/stop button for the physics simulation
-- using graphql API to catch more fields
-- fixed autocomplete and filter selection
-- added new component preset
+- Fix: scoped labels.
+- Pause / resume button for the physics simulation.
+- Switched to GraphQL for richer field coverage.
+- New "Component" preset.
 
 ## [0.3.15] - 2026-01-08
-- preserving graph view during ticket changes
+- Graph view is preserved during ticket changes.
 
 ## [0.3.14] - 2026-01-08
-- auto-update system to prevent browser caching
+- Auto-update to prevent browser caching of stale builds.
 
 ## [0.3.13] - 2026-01-08
-- Improved border radius on context menus - tiny UX fix
+- Tiny context-menu border-radius polish.
 
 ## [0.3.12] - 2026-01-08
-- Fixed tests :D
+- Test suite fixes.
 
 ## [0.3.11] - 2026-01-08
-- GitLab: detect token scopes and show a warning when write is disabled
-- Context menu: add write actions (close/reopen, assign to me, unassign) when token allows.
+- Detects whether your GitLab token can write, and warns when it can't.
+- Context menu adds close / reopen / assign-to-me / unassign actions when the token allows.
 
 ## [0.3.10] - 2026-01-07
-- added context menu for issues
-- sidebar: move “Clear filters” next to Filters header; remove duplicate reset button.
-- Collapsed sidebar mini toolbar: add “Fit to screen”.
+- Right-click context menu on issues.
+- Sidebar: "Clear filters" moved next to the Filters header; "Fit to screen" added to the collapsed mini toolbar.
 
 ## [0.3.9] - 2026-01-07
-- Improved navigation state persistence in the URL
-- Improved About page
+- Navigation state better preserved in the URL.
+- About page polish.
 
 ## [0.3.8] - 2026-01-07
-- Prevent duplicate GitLab fetches: ignore “Save & Close/Reload” triggers while an update is already running.
+- Fix: prevent duplicate GitLab fetches when "Save & Close / Reload" is triggered while a fetch is running.
 
 ## [0.3.7] - 2026-01-07
-- Fix token-at-rest obfuscation: store token under `config.tokenObfuscated` (not `config.token`), keep runtime token plain, and keep `glv-xor1:` format.
+- Fix: token-at-rest obfuscation now stores under the correct key, keeping the runtime token plain.
 
 ## [0.3.6] - 2026-01-07
-- GitLab token is now stored obfuscated at rest (XOR + base64) to avoid plain text in local storage / backups.
+- GitLab token is stored obfuscated at rest (XOR + base64), no plain text in local storage / backups.
 
 ## [0.3.5] - 2026-01-06
-- initial release to the public via github :)
+- Initial public release on GitHub.

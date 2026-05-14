@@ -1,6 +1,6 @@
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 
-export function useHashRouting ({ activePage, configInitialTab }) {
+export function useHashRouting ({ activePage, configInitialTab, kioskMode }) {
   // Hash routing (works for hosted + file://):
   // - (no hash)                                    -> main, default view
   // - #/group=author/color=priority/label=Bug      -> main + shared view (key=value segments)
@@ -8,6 +8,9 @@ export function useHashRouting ({ activePage, configInitialTab }) {
   // - #/config/display
   // - #/config                                     -> config (default tab)
   // - #/chattools
+  // - #/kiosk                                      -> kiosk (default mode)
+  // - #/kiosk/workload                             -> kiosk on a specific mode
+  // - #/kiosk/today/paused=1/cycle=10              -> kiosk + mode + kv args (paused/cycle/refresh)
   let isApplyingHash = false
   // Raw "key=value/key=value" portion that follows the page on main view (or trailing on other pages).
   const viewParam = ref('')
@@ -33,6 +36,10 @@ export function useHashRouting ({ activePage, configInitialTab }) {
     } else if (parts[0] === 'chattools') {
       page = 'chattools'
       viewParts = parts.slice(1).filter(isKv)
+    } else if (parts[0] === 'kiosk') {
+      page = 'kiosk'
+      if (parts[1] && !isKv(parts[1])) tab = String(parts[1])
+      viewParts = parts.slice(tab ? 2 : 1).filter(isKv)
     } else {
       viewParts = parts.filter(isKv)
     }
@@ -41,12 +48,16 @@ export function useHashRouting ({ activePage, configInitialTab }) {
   }
 
   const buildHash = (page, tab, view) => {
-    const p = page === 'config' ? 'config' : (page === 'chattools' ? 'chattools' : 'main')
+    const p = page === 'config' ? 'config'
+      : page === 'chattools' ? 'chattools'
+      : page === 'kiosk' ? 'kiosk'
+      : 'main'
     const t = String(tab || '').trim()
     const v = String(view || '').trim()
     const vTail = v ? `/${v}` : ''
     if (p === 'main') return v ? `#/${v}` : ''
     if (p === 'config') return `#/config${t ? `/${encodeURIComponent(t)}` : ''}${vTail}`
+    if (p === 'kiosk')  return `#/kiosk${t ? `/${encodeURIComponent(t)}` : ''}${vTail}`
     return `#/${p}${vTail}`
   }
 
@@ -59,6 +70,9 @@ export function useHashRouting ({ activePage, configInitialTab }) {
         activePage.value = 'config'
       } else if (page === 'chattools') {
         activePage.value = 'chattools'
+      } else if (page === 'kiosk') {
+        if (tab && kioskMode) kioskMode.value = tab
+        activePage.value = 'kiosk'
       } else {
         activePage.value = 'main'
       }
@@ -94,12 +108,18 @@ export function useHashRouting ({ activePage, configInitialTab }) {
     else window.location.hash = next
   }
 
+  const tabForPage = (p) => {
+    if (p === 'config') return configInitialTab.value
+    if (p === 'kiosk') return kioskMode ? kioskMode.value : ''
+    return ''
+  }
+
   // Update only the shared-view part without changing page/tab; never grows history.
   const setView = (view) => {
     const v = String(view || '')
     if (v === viewParam.value) return
     viewParam.value = v
-    setHash(activePage.value, configInitialTab.value, { replace: true, view: v })
+    setHash(activePage.value, tabForPage(activePage.value), { replace: true, view: v })
   }
 
   onMounted(() => {
@@ -108,13 +128,20 @@ export function useHashRouting ({ activePage, configInitialTab }) {
 
     watch(activePage, (p) => {
       if (isApplyingHash) return
-      setHash(p, configInitialTab.value, { replace: false })
+      setHash(p, tabForPage(p), { replace: false })
     })
     watch(configInitialTab, (t) => {
       if (isApplyingHash) return
       if (activePage.value !== 'config') return
       setHash('config', t, { replace: true })
     })
+    if (kioskMode) {
+      watch(kioskMode, (t) => {
+        if (isApplyingHash) return
+        if (activePage.value !== 'kiosk') return
+        setHash('kiosk', t, { replace: true })
+      })
+    }
   })
 
   onUnmounted(() => {

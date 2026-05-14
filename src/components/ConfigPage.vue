@@ -675,72 +675,310 @@
       <!-- Kiosk -->
       <v-window-item value="kiosk">
         <v-container class="py-6 config-max">
-          <v-card>
+          <v-card class="mb-4">
             <v-card-title class="text-subtitle-1 d-flex align-center">
               <v-icon icon="mdi-monitor-dashboard" class="mr-2" />
               Kiosk dashboard
+              <v-spacer />
+              <v-btn
+                color="primary"
+                variant="tonal"
+                size="small"
+                class="text-none"
+                prepend-icon="mdi-play"
+                @click="emit('open-kiosk')"
+              >Open kiosk</v-btn>
             </v-card-title>
             <v-divider />
             <v-card-text>
               <div class="text-caption text-medium-emphasis mb-4">
-                Full-screen status display that auto-refreshes data and cycles through
-                summary views — handy for a wall-mounted screen.
-                Open with <kbd>Shift+K</kbd>, exit with <kbd>Esc</kbd>. Arrow keys to step
-                modes manually, <kbd>Space</kbd> to pause cycling.
+                Full-screen status display. Open with <kbd>Shift+K</kbd>, exit with <kbd>Esc</kbd>.
+                <kbd>← →</kbd> step modes, <kbd>Space</kbd> pauses cycling. Most rows / numbers
+                click-through into the graph with that filter applied, or open the issue in GitLab.
+                <br>
+                <strong>Shareable URLs:</strong>
+                <code>#/kiosk</code>,
+                <code>#/kiosk/workload</code>,
+                <code>#/kiosk/today/paused=1</code>,
+                <code>#/kiosk/risks/paused=1/cycle=10/refresh=2</code>.
               </div>
 
+              <div class="text-overline text-medium-emphasis mb-2">Timing</div>
               <v-row dense>
                 <v-col cols="12" sm="6">
                   <v-text-field
                     v-model.number="settings.uiState.kiosk.refreshMinutes"
-                    type="number"
-                    min="0"
+                    type="number" min="0"
                     label="Auto-refresh interval (minutes)"
                     hint="0 disables auto-refresh"
-                    persistent-hint
-                    variant="outlined"
-                    density="comfortable"
+                    persistent-hint variant="outlined" density="comfortable"
+                    prepend-inner-icon="mdi-refresh"
                   />
                 </v-col>
                 <v-col cols="12" sm="6">
                   <v-text-field
                     v-model.number="settings.uiState.kiosk.cycleSeconds"
-                    type="number"
-                    min="0"
+                    type="number" min="0"
                     label="Mode cycle interval (seconds)"
                     hint="0 stays on the current mode"
-                    persistent-hint
-                    variant="outlined"
-                    density="comfortable"
-                  />
-                </v-col>
-                <v-col cols="12" sm="6">
-                  <v-text-field
-                    v-model.number="settings.uiState.kiosk.workloadIdleDays"
-                    type="number"
-                    min="0"
-                    label="Workload: ignore tickets idle (days)"
-                    hint="Excludes open tickets not updated in this many days, plus anything with Status::Backlog. 0 counts everything."
-                    persistent-hint
-                    variant="outlined"
-                    density="comfortable"
+                    persistent-hint variant="outlined" density="comfortable"
+                    prepend-inner-icon="mdi-rotate-3d-variant"
                   />
                 </v-col>
               </v-row>
 
-              <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis mt-4 mb-2">
-                Enabled modes
-              </div>
-              <div class="d-flex flex-wrap ga-3">
-                <v-checkbox
-                  v-for="m in kioskAllModes"
-                  :key="m.id"
+              <v-divider class="my-4" />
+              <div class="text-overline text-medium-emphasis mb-2">Active filter</div>
+              <v-row dense>
+                <v-col cols="12" sm="6">
+                  <v-text-field
+                    v-model.number="settings.uiState.kiosk.staleDays"
+                    type="number" min="0"
+                    label="Stale threshold (days)"
+                    hint="Drops open tickets idle longer than this from every kiosk mode. 0 = include all."
+                    persistent-hint variant="outlined" density="comfortable"
+                    prepend-inner-icon="mdi-timer-sand"
+                  />
+                </v-col>
+                <v-col cols="12" sm="6" class="d-flex align-center">
+                  <v-checkbox
+                    v-model="settings.uiState.kiosk.excludeBacklog"
+                    label="Exclude Status::Backlog tickets"
+                    hint="Drops backlog-status tickets from every kiosk mode."
+                    persistent-hint hide-details="auto" density="compact"
+                  />
+                </v-col>
+                <v-col cols="12">
+                  <v-select
+                    v-model="settings.uiState.kiosk.priorityFilter"
+                    :items="kioskPriorityBuckets"
+                    item-title="label"
+                    item-value="value"
+                    label="Priority filter — only show open tickets matching"
+                    hint="Filters open tickets across every kiosk mode. Closed tickets are kept as historical events. Empty = include all."
+                    persistent-hint
+                    multiple chips clearable
+                    variant="outlined" density="comfortable"
+                    prepend-inner-icon="mdi-filter-variant"
+                  />
+                </v-col>
+              </v-row>
+
+              <v-divider class="my-4" />
+              <div class="text-overline text-medium-emphasis mb-2">Target</div>
+              <v-combobox
+                v-model="settings.uiState.kiosk.targetMilestone"
+                :items="props.allMilestones"
+                label="Target milestone"
+                hint="The version we're driving toward. Pinned in Milestone progress; shown in the dedicated Target focus mode. Free-form fallback when the milestone isn't loaded yet."
+                persistent-hint
+                clearable
+                variant="outlined"
+                density="comfortable"
+                prepend-inner-icon="mdi-flag"
+              />
+            </v-card-text>
+          </v-card>
+
+          <div class="d-flex align-center justify-space-between mb-2">
+            <div class="text-caption font-weight-bold text-uppercase text-medium-emphasis">
+              Modes · {{ enabledKioskCount }} of {{ kioskAllModes.length }} enabled
+            </div>
+            <div class="d-flex ga-1">
+              <v-btn
+                variant="text" size="small" class="text-none"
+                prepend-icon="mdi-checkbox-multiple-marked-outline"
+                :disabled="enabledKioskCount === kioskAllModes.length"
+                @click="setAllKioskModes(true)"
+              >Enable all</v-btn>
+              <v-btn
+                variant="text" size="small" class="text-none"
+                prepend-icon="mdi-checkbox-multiple-blank-outline"
+                :disabled="enabledKioskCount === 0"
+                @click="setAllKioskModes(false)"
+              >Disable all</v-btn>
+            </div>
+          </div>
+          <v-card
+            v-for="m in kioskAllModes" :key="m.id"
+            class="mb-2 kiosk-mode-card"
+            :class="{ 'is-on': settings.uiState.kiosk.modes[m.id], 'is-off': !settings.uiState.kiosk.modes[m.id] }"
+            variant="outlined"
+          >
+            <v-card-text class="py-3">
+              <div class="d-flex align-center ga-3">
+                <div class="kiosk-mode-icon"><v-icon :icon="m.icon" size="20" /></div>
+                <div class="flex-grow-1">
+                  <div class="text-subtitle-2 font-weight-bold">{{ m.label }}</div>
+                  <div class="text-caption text-medium-emphasis">{{ m.description }}</div>
+                </div>
+                <v-switch
                   v-model="settings.uiState.kiosk.modes[m.id]"
-                  :label="m.label"
-                  hide-details
-                  density="compact"
+                  hide-details density="compact" inset color="primary"
                 />
               </div>
+
+              <v-row v-if="settings.uiState.kiosk.modes[m.id] && kioskHasOptions(m.id)" dense class="mt-2 kiosk-mode-options">
+                <v-col v-if="m.id === 'velocity'" cols="6" sm="3">
+                  <v-text-field
+                    v-model.number="settings.uiState.kiosk.modeConfig.velocity.days"
+                    type="number" min="2" max="31"
+                    label="Days window" density="compact" variant="outlined" hide-details
+                  />
+                </v-col>
+                <v-col v-if="m.id === 'workload'" cols="6" sm="3">
+                  <v-text-field
+                    v-model.number="settings.uiState.kiosk.modeConfig.workload.topN"
+                    type="number" min="3" max="50"
+                    label="Top N" density="compact" variant="outlined" hide-details
+                  />
+                </v-col>
+                <v-col v-if="m.id === 'workload'" cols="12" sm="9">
+                  <v-checkbox
+                    v-model="settings.uiState.kiosk.modeConfig.workload.stackByPriority"
+                    label="Stack bars by priority (Blocking / High / Medium / Low / Other / No priority)"
+                    hide-details density="compact"
+                  />
+                </v-col>
+                <v-col v-if="m.id === 'priority'" cols="12">
+                  <v-checkbox
+                    v-model="settings.uiState.kiosk.modeConfig.priority.showNoPriority"
+                    label='Include "(No priority)" bucket' hide-details density="compact"
+                  />
+                </v-col>
+                <v-col v-if="m.id === 'status'" cols="12">
+                  <v-checkbox
+                    v-model="settings.uiState.kiosk.modeConfig.status.showNoStatus"
+                    label='Include "(No status)" bucket' hide-details density="compact"
+                  />
+                </v-col>
+                <v-col v-if="m.id === 'type'" cols="12">
+                  <v-checkbox
+                    v-model="settings.uiState.kiosk.modeConfig.type.showNoType"
+                    label='Include "(No type)" bucket' hide-details density="compact"
+                  />
+                </v-col>
+                <v-col v-if="m.id === 'milestones'" cols="6" sm="3">
+                  <v-text-field
+                    v-model.number="settings.uiState.kiosk.modeConfig.milestones.topN"
+                    type="number" min="3" max="30"
+                    label="Top N" density="compact" variant="outlined" hide-details
+                  />
+                </v-col>
+                <v-col v-if="m.id === 'burnup'" cols="6" sm="3">
+                  <v-text-field
+                    v-model.number="settings.uiState.kiosk.modeConfig.burnup.windowDays"
+                    type="number" min="7" max="365"
+                    label="Window (days)"
+                    hint="Used when the milestone has no sensible start_date."
+                    persistent-hint
+                    density="compact" variant="outlined"
+                  />
+                </v-col>
+                <v-col v-if="m.id === 'activity'" cols="6" sm="3">
+                  <v-text-field
+                    v-model.number="settings.uiState.kiosk.modeConfig.activity.limit"
+                    type="number" min="5" max="100"
+                    label="Feed size" density="compact" variant="outlined" hide-details
+                  />
+                </v-col>
+                <v-col v-if="m.id === 'activity'" cols="12" sm="9">
+                  <v-checkbox
+                    v-model="settings.uiState.kiosk.modeConfig.activity.includeUpdates"
+                    label='Include "updated" events (comments / label changes / edits — uses updated_at)'
+                    hide-details density="compact"
+                  />
+                </v-col>
+                <v-col v-if="m.id === 'hotLabels'" cols="6" sm="3">
+                  <v-text-field
+                    v-model.number="settings.uiState.kiosk.modeConfig.hotLabels.hours"
+                    type="number" min="1" max="240"
+                    label="Window (hours)"
+                    density="compact" variant="outlined" hide-details
+                  />
+                </v-col>
+                <v-col v-if="m.id === 'hotLabels'" cols="6" sm="3">
+                  <v-text-field
+                    v-model.number="settings.uiState.kiosk.modeConfig.hotLabels.topN"
+                    type="number" min="3" max="50"
+                    label="Top N"
+                    density="compact" variant="outlined" hide-details
+                  />
+                </v-col>
+                <v-col v-if="m.id === 'hotLabels'" cols="12" sm="6">
+                  <v-checkbox
+                    v-model="settings.uiState.kiosk.modeConfig.hotLabels.includeScoped"
+                    label="Include scoped labels (Priority:: / Type:: / …)"
+                    hide-details density="compact"
+                  />
+                </v-col>
+                <v-col v-if="m.id === 'blockers'" cols="6" sm="3">
+                  <v-text-field
+                    v-model.number="settings.uiState.kiosk.modeConfig.blockers.limit"
+                    type="number" min="3" max="50"
+                    label="List size"
+                    density="compact" variant="outlined" hide-details
+                  />
+                </v-col>
+                <v-col v-if="m.id === 'blockers'" cols="6" sm="3">
+                  <v-text-field
+                    v-model.number="settings.uiState.kiosk.modeConfig.blockers.maxAgeDays"
+                    type="number" min="0" max="3650"
+                    label="Only show blockers ≤ N days old"
+                    hint="0 = show all"
+                    persistent-hint
+                    density="compact" variant="outlined"
+                  />
+                </v-col>
+                <v-col v-if="m.id === 'wipStale'" cols="6" sm="3">
+                  <v-text-field
+                    v-model.number="settings.uiState.kiosk.modeConfig.wipStale.days"
+                    type="number" min="1" max="60"
+                    label="Idle threshold (days)"
+                    density="compact" variant="outlined" hide-details
+                  />
+                </v-col>
+                <v-col v-if="m.id === 'wipStale'" cols="6" sm="3">
+                  <v-text-field
+                    v-model.number="settings.uiState.kiosk.modeConfig.wipStale.limit"
+                    type="number" min="3" max="50"
+                    label="List size"
+                    density="compact" variant="outlined" hide-details
+                  />
+                </v-col>
+                <v-col v-if="m.id === 'closed'" cols="6" sm="3">
+                  <v-text-field
+                    v-model.number="settings.uiState.kiosk.modeConfig.closed.hours"
+                    type="number" min="1" max="240"
+                    label="Window (hours)"
+                    density="compact" variant="outlined" hide-details
+                  />
+                </v-col>
+                <v-col v-if="m.id === 'closed'" cols="6" sm="3">
+                  <v-text-field
+                    v-model.number="settings.uiState.kiosk.modeConfig.closed.limit"
+                    type="number" min="3" max="60"
+                    label="List size"
+                    density="compact" variant="outlined" hide-details
+                  />
+                </v-col>
+                <v-col v-if="m.id === 'risks'" cols="6" sm="3">
+                  <v-text-field
+                    v-model.number="settings.uiState.kiosk.modeConfig.risks.staleListDays"
+                    type="number" min="1"
+                    label='"Stale" threshold (days)'
+                    density="compact" variant="outlined" hide-details
+                  />
+                </v-col>
+                <v-col v-if="m.id === 'risks'" cols="6" sm="3">
+                  <v-text-field
+                    v-model.number="settings.uiState.kiosk.modeConfig.risks.listLimit"
+                    type="number" min="1" max="50"
+                    label="List size (per column)"
+                    density="compact" variant="outlined" hide-details
+                  />
+                </v-col>
+              </v-row>
             </v-card-text>
           </v-card>
         </v-container>
@@ -957,13 +1195,36 @@ import HotkeysSettings from './HotkeysSettings.vue'
 import localforage from 'localforage'
 
 const kioskAllModes = [
-  { id: 'today',    label: "Today's pulse" },
-  { id: 'velocity', label: '7-day velocity' },
-  { id: 'workload', label: 'Workload by assignee' },
-  { id: 'priority', label: 'Priority overview' },
-  { id: 'activity', label: 'Recent activity' },
-  { id: 'risks',    label: 'Overdue / stale / unassigned' }
+  { id: 'target',     label: 'Target milestone',         icon: 'mdi-flag',                 description: 'Focused dashboard for the milestone set above (big % bar + countdown + top open).' },
+  { id: 'burnup',     label: 'Milestone burnup',         icon: 'mdi-chart-areaspline',     description: 'Cumulative scope vs closed line chart over the target milestone lifetime.' },
+  { id: 'blockers',   label: 'Blockers',                 icon: 'mdi-alert-octagon',        description: 'Open tickets with blocking/critical priority, critical severity, or "blocked" status/label — sorted oldest first.' },
+  { id: 'wipStale',   label: 'Stale WIP',                icon: 'mdi-progress-alert',       description: 'Tickets in "In progress" status that have not been updated in N days.' },
+  { id: 'today',      label: "Today's pulse",            icon: 'mdi-pulse',                description: 'Opened / closed / updated / totals.' },
+  { id: 'velocity',   label: 'Velocity',                 icon: 'mdi-trending-up',          description: 'Created vs closed per day.' },
+  { id: 'workload',   label: 'Workload by assignee',     icon: 'mdi-account-multiple',     description: 'Top assignees by active open count.' },
+  { id: 'priority',   label: 'Priority overview',        icon: 'mdi-alert-circle-outline', description: 'Open per Priority:: label.' },
+  { id: 'status',     label: 'Status breakdown',         icon: 'mdi-list-status',          description: 'Open per work-item status.' },
+  { id: 'type',       label: 'Type breakdown',           icon: 'mdi-shape-outline',        description: 'Open per Type:: label.' },
+  { id: 'hotLabels',  label: 'Hot labels',               icon: 'mdi-fire',                 description: 'Plain labels appearing on tickets active in the last N hours.' },
+  { id: 'milestones', label: 'Milestone progress',       icon: 'mdi-flag-checkered',       description: 'Active milestones with completion %.' },
+  { id: 'aging',      label: 'Aging buckets',            icon: 'mdi-timer-sand',           description: 'Distribution of open ticket ages.' },
+  { id: 'activity',   label: 'Recent activity',          icon: 'mdi-history',              description: 'Recent opens / closes / updates with actor.' },
+  { id: 'closed',     label: 'Recently closed',          icon: 'mdi-party-popper',         description: 'Celebration view — tickets closed in the last N hours.' },
+  { id: 'risks',      label: 'Overdue / stale / unassigned', icon: 'mdi-alert-octagon-outline', description: 'Tickets needing attention.' }
 ]
+const kioskHasOptions = (id) => ['velocity', 'workload', 'priority', 'status', 'type', 'hotLabels', 'milestones', 'burnup', 'activity', 'blockers', 'wipStale', 'closed', 'risks'].includes(id)
+const kioskPriorityBuckets = [
+  { value: 'blocking', label: 'Blocking / Critical' },
+  { value: 'high',     label: 'High' },
+  { value: 'medium',   label: 'Medium / Normal' },
+  { value: 'low',      label: 'Low' },
+  { value: 'other',    label: 'Other (non-canonical)' },
+  { value: 'none',     label: 'No priority set' }
+]
+const enabledKioskCount = computed(() => kioskAllModes.filter(m => settings.uiState.kiosk.modes[m.id]).length)
+const setAllKioskModes = (on) => {
+  for (const m of kioskAllModes) settings.uiState.kiosk.modes[m.id] = on
+}
 import pkg from '../../package.json'
 import changelogRaw from '../../CHANGELOG.md?raw'
 import { renderMarkdown } from '../chatTools/utils'
@@ -981,13 +1242,17 @@ const props = defineProps({
     type: String,
     default: ''
   },
+  allMilestones: {
+    type: Array,
+    default: () => []
+  },
   initialTab: {
     type: String,
     default: 'gitlab'
   }
 })
 
-const emit = defineEmits(['close', 'save', 'clear-data', 'update-source', 'clear-source', 'tab-change'])
+const emit = defineEmits(['close', 'save', 'clear-data', 'update-source', 'clear-source', 'tab-change', 'open-kiosk'])
 
 // Use shared settings directly (saves on any change)
 const { settings } = useSettingsStore()
@@ -1897,5 +2162,29 @@ const logoutMattermost = () => {
 .changelog-markdown :deep(h2),
 .changelog-markdown :deep(h3) {
   margin-top: 14px;
+}
+
+/* Kiosk config: per-mode cards */
+.kiosk-mode-card { transition: opacity 0.15s, border-color 0.15s; }
+.kiosk-mode-card.is-on  { border-left: 3px solid rgb(var(--v-theme-primary)); }
+.kiosk-mode-card.is-off { opacity: 0.55; }
+.kiosk-mode-card.is-off:hover { opacity: 0.85; }
+.kiosk-mode-card .kiosk-mode-icon {
+  width: 36px; height: 36px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(var(--v-theme-primary), 0.12);
+  color: rgb(var(--v-theme-primary));
+}
+.kiosk-mode-card.is-off .kiosk-mode-icon {
+  background: rgba(127, 127, 127, 0.12);
+  color: rgb(var(--v-theme-on-surface));
+}
+.kiosk-mode-card .kiosk-mode-options {
+  padding-left: 48px; /* align under label, not the icon */
+  padding-top: 4px;
 }
 </style>

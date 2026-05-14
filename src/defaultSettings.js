@@ -78,10 +78,46 @@ export const defaultSettings = () => ({
     },
     hotkeys: {}, // action id -> combo string; empty = use built-in defaults
     kiosk: {
-      refreshMinutes: 5,    // 0 disables auto-refresh
-      cycleSeconds: 20,     // 0 disables auto-cycling (sticks on one mode)
-      workloadIdleDays: 60, // workload mode excludes open tickets idle longer than this (0 = include all)
-      modes: { today: true, velocity: true, workload: true, priority: true, activity: true, risks: true }
+      refreshMinutes: 5,  // 0 disables auto-refresh
+      cycleSeconds: 20,   // 0 disables auto-cycling (sticks on one mode)
+      // Global "active" filter: count modes (workload / priority / status / type) exclude
+      // open tickets idle longer than this many days. 0 = include everything.
+      staleDays: 60,
+      // Globally drop tickets whose effective status contains "Backlog" from count-based
+      // modes (workload / priority / status / type / aging / risks). Milestones, today,
+      // velocity and activity stay unfiltered since they represent historical / progress data.
+      excludeBacklog: true,
+      // Whitelist of priority buckets to include across ALL kiosk modes. Empty = include
+      // all. Buckets: 'blocking' (Blocking/Critical), 'high', 'medium' (Medium/Normal),
+      // 'low', 'other' (non-canonical labels), 'none' (no Priority:: label at all).
+      priorityFilter: [],
+      // Milestone title we're driving toward (free-form string matching `raw.milestone.title`).
+      // Used by the 'target' focus mode and highlighted in the milestones list. Empty = no target.
+      targetMilestone: '',
+      modes: {
+        target: true, burnup: true, blockers: true, wipStale: true,
+        today: true, velocity: true, workload: true, priority: true,
+        status: true, type: true, hotLabels: true,
+        milestones: true, aging: true,
+        activity: true, closed: true, risks: true
+      },
+      // Per-mode tuning. Modes without an entry have no options yet.
+      modeConfig: {
+        velocity:   { days: 7 },
+        workload:   { topN: 12, stackByPriority: true },
+        priority:   { showNoPriority: true },
+        status:     { showNoStatus: false },
+        type:       { showNoType: false },
+        milestones: { topN: 8 },
+        burnup:     { windowDays: 90 },
+        aging:      {},
+        activity:   { limit: 22, includeUpdates: true },
+        hotLabels:  { hours: 24, topN: 15, includeScoped: false },
+        blockers:   { limit: 12, maxAgeDays: 0 },  // 0 = no upper bound; otherwise hide blockers older than this
+        wipStale:   { days: 5, limit: 12 },         // tickets in "in progress" status idle > N days
+        closed:     { hours: 48, limit: 18 },
+        risks:      { staleListDays: 14, listLimit: 10 }
+      }
     },
     presets: {
       custom: [] // [{ name, config }]

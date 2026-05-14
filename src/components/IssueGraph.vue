@@ -3661,7 +3661,8 @@ html[data-theme="dark"] .issue-context-menu__chip:hover {
   width: 220px;
   /* Leave room for the bottom-right scale bar overlay (range/distance). */
   max-height: calc(100% - 24px - 70px);
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   padding: 10px;
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.35);
@@ -3759,13 +3760,14 @@ html[data-theme="dark"] .issue-context-menu__chip:hover {
 
 .legend-item {
   display: grid;
-  grid-template-columns: 14px 1fr auto;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
   border-radius: 8px;
   padding: 2px 4px;
   position: relative;
   cursor: default;
+  min-width: 0;
 }
 
 .legend-item:hover {
@@ -3902,11 +3904,12 @@ html[data-theme="dark"] .issue-context-menu__chip:hover {
 
 .link-legend-item {
   display: grid;
-  grid-template-columns: 50px 1fr;
+  grid-template-columns: 50px minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   border-radius: 8px;
   padding: 2px 4px;
+  min-width: 0;
 }
 
 .link-legend-item:hover {
