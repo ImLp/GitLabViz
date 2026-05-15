@@ -68,6 +68,12 @@ export function useSettingsStore() {
         if (typeof k.excludeBacklog === 'boolean') settings.uiState.kiosk.excludeBacklog = k.excludeBacklog
         if (Array.isArray(k.priorityFilter)) settings.uiState.kiosk.priorityFilter = k.priorityFilter.slice()
         if (typeof k.targetMilestone === 'string') settings.uiState.kiosk.targetMilestone = k.targetMilestone
+        if (k.burnIn && typeof k.burnIn === 'object') {
+          if (typeof k.burnIn.pixelShift === 'boolean') settings.uiState.kiosk.burnIn.pixelShift = k.burnIn.pixelShift
+          if (k.burnIn.offHours && typeof k.burnIn.offHours === 'object') {
+            Object.assign(settings.uiState.kiosk.burnIn.offHours, k.burnIn.offHours)
+          }
+        }
         if (k.modes && typeof k.modes === 'object') {
           Object.assign(settings.uiState.kiosk.modes, k.modes)
           // Backward compat: heatmapCreated / heatmapClosed / heatmapAll were merged

@@ -94,6 +94,17 @@ export const defaultSettings = () => ({
       // Milestone title we're driving toward (free-form string matching `raw.milestone.title`).
       // Used by the 'target' focus mode and highlighted in the milestones list. Empty = no target.
       targetMilestone: '',
+      // Screen burn-in protection for always-on office displays.
+      // `pixelShift`: nudge the whole kiosk by a few px every ~60s (imperceptible
+      // to viewers but no single pixel stays the same colour for long).
+      // `offHours`: outside `start..end` (24h, local), dim the screen to
+      // `dim` brightness (0 = pure black, 1 = no dim). When `start === end`,
+      // treated as 24h working — never dims. `start > end` wraps midnight
+      // (e.g. start=22, end=6 means "on overnight").
+      burnIn: {
+        pixelShift: true,
+        offHours: { enabled: false, start: 7, end: 21, dim: 0.05 }
+      },
       modes: {
         target: true, burndown: true, blockers: true, wipStale: true,
         today: true, velocity: true,

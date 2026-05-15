@@ -1,5 +1,10 @@
 <template>
-  <div class="kiosk" :class="{ 'is-refreshed': justRefreshed }" tabindex="0" ref="root">
+  <div
+    class="kiosk"
+    :class="{ 'is-refreshed': justRefreshed, 'kiosk-off-hours': isOffHours }"
+    :style="{ '--kiosk-shift-x': pixelShift.x + 'px', '--kiosk-shift-y': pixelShift.y + 'px', '--kiosk-off-dim': offHoursDim }"
+    tabindex="0" ref="root"
+  >
     <header class="kiosk-head">
       <div class="kiosk-head-left">
         <span class="kiosk-tag">KIOSK</span>
@@ -1199,6 +1204,41 @@ watch(() => props.lastUpdated, (newVal, oldVal) => {
   justRefreshedTimer = setTimeout(() => { justRefreshed.value = false }, 800)
 })
 
+// --- Burn-in protection -----------------------------------------------------
+// Pixel shift: every ~60s, nudge the whole kiosk by ±3px on each axis. Slow
+// CSS transition makes the shift imperceptible to viewers but stops any
+// single pixel from being the same colour for hours on end (OLED retention).
+const burnInCfg = computed(() => settings.uiState.kiosk?.burnIn || {})
+const pixelShift = ref({ x: 0, y: 0 })
+let pixelShiftTimer = null
+const tickPixelShift = () => {
+  if (!burnInCfg.value.pixelShift) { pixelShift.value = { x: 0, y: 0 }; return }
+  const r = 3
+  pixelShift.value = {
+    x: Math.round((Math.random() * 2 - 1) * r),
+    y: Math.round((Math.random() * 2 - 1) * r)
+  }
+}
+// Off-hours dim: outside the configured working hours window, drop the screen
+// to a low `brightness()` value. `start === end` = 24h (never dims). `start >
+// end` wraps midnight (e.g., a 22→6 night shift). `dim: 0` = fully black,
+// `dim: 1` = no dim at all.
+const isOffHours = computed(() => {
+  const oh = burnInCfg.value.offHours
+  if (!oh || !oh.enabled) return false
+  const start = ((Number(oh.start) || 0) % 24 + 24) % 24
+  const end   = ((Number(oh.end)   || 0) % 24 + 24) % 24
+  if (start === end) return false
+  const hour = new Date(nowTick.value).getHours()
+  const inWork = start < end ? (hour >= start && hour < end) : (hour >= start || hour < end)
+  return !inWork
+})
+const offHoursDim = computed(() => {
+  const v = Number(burnInCfg.value.offHours?.dim)
+  if (!Number.isFinite(v)) return 0.05
+  return Math.max(0, Math.min(1, v))
+})
+
 const watchModeSvgs = () => {
   burndownRO       = observeSize(burndownRO,       burndownSvgRef.value,       burndownSize)
   heatmapRO        = observeSize(heatmapRO,        heatmapSvgRef.value,        heatmapSize)
@@ -1213,6 +1253,8 @@ onMounted(() => {
   startCycle()
   startRefresh()
   nowTickTimer = setInterval(() => { nowTick.value = Date.now() }, 1000)
+  pixelShiftTimer = setInterval(tickPixelShift, 60000)
+  tickPixelShift()
   window.addEventListener('keydown', handleWindowKey)
   if (root.value && typeof root.value.focus === 'function') root.value.focus()
   nextTick(watchModeSvgs)
@@ -1226,6 +1268,7 @@ onUnmounted(() => {
   if (heatmapRO)        { heatmapRO.disconnect();        heatmapRO = null }
   if (heatmapByLabelRO) { heatmapByLabelRO.disconnect(); heatmapByLabelRO = null }
   if (justRefreshedTimer) { clearTimeout(justRefreshedTimer); justRefreshedTimer = null }
+  if (pixelShiftTimer)    { clearInterval(pixelShiftTimer);   pixelShiftTimer = null }
   if (pauseFlashTimer)    { clearTimeout(pauseFlashTimer);    pauseFlashTimer = null }
 })
 
@@ -2714,7 +2757,13 @@ const relTime = (ts) => {
   background: rgb(var(--v-theme-background));
   color: rgb(var(--v-theme-on-background));
   outline: none;
+  /* Burn-in protection: slow ±3px nudge every ~60s (set via the inline custom
+     properties on the root element); dim the whole screen when outside the
+     configured working hours. */
+  transform: translate(var(--kiosk-shift-x, 0), var(--kiosk-shift-y, 0));
+  transition: transform 1.6s ease, filter 2s ease;
 }
+.kiosk.kiosk-off-hours { filter: brightness(var(--kiosk-off-dim, 0.05)); }
 
 /* "Just refreshed" pulse — root toggles .is-refreshed for ~800ms whenever the
    `lastUpdated` prop changes. CSS keyframes pick this up to lightly flash the
@@ -3010,12 +3059,13 @@ const relTime = (ts) => {
   0%   { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
-/* (12px, -12px) is exactly one stripe period along the 45° gradient axis
-   (period 12px × √2 ≈ 16.97px on x), so the loop point is seamless — the
-   previous "17px 0" was ~0.03px off and produced a visible micro-jump. */
+/* For a 45° gradient with a 12px gradient-axis period, the horizontal
+   screen-space period is exactly 12 × √2 ≈ 16.97056px. Anything else (17px,
+   12px -12px, …) drifts and the loop point snaps visibly. The float value
+   here lets the browser interpolate with sub-pixel precision. */
 @keyframes kiosk-stripe-slide {
   from { background-position: 0 0; }
-  to   { background-position: 12px -12px; }
+  to   { background-position: 16.97056px 0; }
 }
 @keyframes kiosk-green-slide {
   0%, 100% { background-position: 0% 0; }
@@ -3294,7 +3344,35 @@ const relTime = (ts) => {
 }
 .k-vel-cell.k-clickable { cursor: pointer; }
 .k-vel-cell.k-clickable:hover { filter: brightness(1.25); outline: 1px solid rgba(255,255,255,0.5); }
-.k-vel-cell-today { outline: 1px dashed rgba(var(--v-theme-primary), 0.7); outline-offset: 1px; }
+/* Today's cell — bright yellow ring with a pulsing glow so the room can find
+   "now" at a glance even when the daily-net colours are loud. z-index lifts it
+   above neighbour outlines on hover. */
+.k-vel-cell-today {
+  outline: 3px solid #ffd54f;
+  outline-offset: 2px;
+  z-index: 1;
+  box-shadow:
+    0 0 0 1px rgba(255, 213, 79, 0.55),
+    0 0 14px 4px rgba(255, 213, 79, 0.55),
+    0 0 28px 6px rgba(255, 213, 79, 0.25);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .k-vel-cell-today { animation: kiosk-today-glow 2.4s ease-in-out infinite; }
+}
+@keyframes kiosk-today-glow {
+  0%, 100% {
+    box-shadow:
+      0 0 0 1px rgba(255, 213, 79, 0.45),
+      0 0 12px 3px rgba(255, 213, 79, 0.4),
+      0 0 24px 6px rgba(255, 213, 79, 0.18);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1px rgba(255, 213, 79, 0.75),
+      0 0 22px 6px rgba(255, 213, 79, 0.7),
+      0 0 40px 10px rgba(255, 213, 79, 0.35);
+  }
+}
 .k-vel-cell-outside .k-vel-cell-date { opacity: 0.35; }
 .k-legend {
   display: flex;

@@ -115,7 +115,7 @@
         @clear-data="clearData"
         @update-source="handleUpdateSource"
         @clear-source="handleClearSource"
-        @open-kiosk="activePage = 'kiosk'"
+        @open-kiosk="enterKiosk"
       />
       <ChatToolsPage
         v-else-if="isElectron && activePage === 'chattools'"
@@ -306,6 +306,11 @@ const svnUrl = computed({
 const activePage = ref('main') // 'main' | 'config' | 'chattools' | 'kiosk'
 const configInitialTab = ref('gitlab')
 const kioskMode = ref('today')
+// When the user opens the kiosk from inside the app (hotkey / Open-kiosk button),
+// reset to the first enabled mode rather than picking up wherever the cycle had
+// drifted last session. URL-based entries (e.g. `#/kiosk/burndown/…`) still take
+// effect because the routing parser sets `kioskMode` after this point.
+const enterKiosk = () => { kioskMode.value = ''; activePage.value = 'kiosk' }
 const { viewParam, setView } = useHashRouting({ activePage, configInitialTab, kioskMode })
 const loading = ref(false)
 const loadingMessage = ref('')
@@ -963,7 +968,7 @@ const hotkeyHandlers = {
     settings.uiState.ui.theme = order[(i + 1 + order.length) % order.length]
   },
   openConfig,
-  toggleKiosk: () => { activePage.value = activePage.value === 'kiosk' ? 'main' : 'kiosk' },
+  toggleKiosk: () => { activePage.value === 'kiosk' ? (activePage.value = 'main') : enterKiosk() },
   showHotkeyHelp: () => { showHotkeyHelp.value = !showHotkeyHelp.value }
 }
 

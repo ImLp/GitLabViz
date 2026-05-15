@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.12.21] - 2026-05-15
+- **Screen burn-in protection** for always-on office kiosks. Two opt-in safeguards in Configuration → Kiosk:
+  - **Pixel shift** (default ON): nudges the kiosk view by ±3px every ~60 seconds with a slow 1.6s transition. Imperceptible at normal viewing distance, but no single pixel stays the same colour for more than a minute — the industry-standard mitigation for OLED retention on signage.
+  - **Dim outside working hours** (default OFF): configurable hours window (`start..end`, 0–23, local time; `end < start` wraps midnight for night shifts), plus a brightness slider (0 = fully black, 1 = no dim, default 0.05). Single biggest burn-in win for displays in offices that aren't 24/7. Data still refreshes and modes still cycle in the background — the wall just gets very dark.
+
 ## [0.12.20] - 2026-05-14
 - Velocity calendar re-laid-out as a proper month-view: **ISO-week-number column on the left**, **Mon..Sun headers across the top**, week rows underneath. Each cell now shows the **date number** in the top-left (with the short month name prepended on the 1st of each month, e.g. `May 1`) and the daily net (+N / -N) centred. Same red/green/grey coloring rules. Looks and reads like Google Calendar / Outlook's month grid rather than a raw heatmap.
 

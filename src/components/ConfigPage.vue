@@ -779,6 +779,59 @@
                 density="comfortable"
                 prepend-inner-icon="mdi-flag"
               />
+
+              <v-divider class="my-4" />
+              <div class="text-overline text-medium-emphasis mb-2">Screen burn-in protection</div>
+              <v-row dense>
+                <v-col cols="12" sm="6" class="d-flex align-center">
+                  <v-checkbox
+                    v-model="settings.uiState.kiosk.burnIn.pixelShift"
+                    label="Pixel shift (recommended for OLED)"
+                    hint="Nudges the kiosk by ±3px every ~60s — imperceptible to viewers, prevents static pixels from burning in."
+                    persistent-hint hide-details="auto" density="compact"
+                  />
+                </v-col>
+                <v-col cols="12" sm="6" class="d-flex align-center">
+                  <v-checkbox
+                    v-model="settings.uiState.kiosk.burnIn.offHours.enabled"
+                    label="Dim outside working hours"
+                    hint="Dims the screen overnight and on weekends. Single biggest burn-in mitigation if the office isn't 24/7."
+                    persistent-hint hide-details="auto" density="compact"
+                  />
+                </v-col>
+                <template v-if="settings.uiState.kiosk.burnIn.offHours.enabled">
+                  <v-col cols="6" sm="3">
+                    <v-text-field
+                      v-model.number="settings.uiState.kiosk.burnIn.offHours.start"
+                      type="number" min="0" max="23"
+                      label="Working hours start"
+                      hint="Hour of day, 0–23."
+                      persistent-hint variant="outlined" density="comfortable"
+                      prepend-inner-icon="mdi-weather-sunset-up"
+                    />
+                  </v-col>
+                  <v-col cols="6" sm="3">
+                    <v-text-field
+                      v-model.number="settings.uiState.kiosk.burnIn.offHours.end"
+                      type="number" min="0" max="23"
+                      label="Working hours end"
+                      hint="Hour of day, 0–23. Wraps midnight if end < start (night shift)."
+                      persistent-hint variant="outlined" density="comfortable"
+                      prepend-inner-icon="mdi-weather-sunset-down"
+                    />
+                  </v-col>
+                  <v-col cols="12" sm="6">
+                    <v-text-field
+                      v-model.number="settings.uiState.kiosk.burnIn.offHours.dim"
+                      type="number" min="0" max="1" step="0.05"
+                      label="Off-hours brightness"
+                      hint="0 = fully black, 1 = no dim. Default 0.05 (very dark but still visible)."
+                      persistent-hint variant="outlined" density="comfortable"
+                      prepend-inner-icon="mdi-brightness-3"
+                    />
+                  </v-col>
+                </template>
+              </v-row>
             </v-card-text>
           </v-card>
 
