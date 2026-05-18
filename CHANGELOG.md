@@ -2,6 +2,7 @@
 
 ## [0.12.34] - 2026-05-18
 - **Burndown** y-axis now contains both the remaining and closed lines. Was only sized to `max(initialOpen, peakRemaining)`, so once cumulative closed exceeded that (common when the team ships a lot and/or scope grows mid-milestone) the green line drew off the top of the chart.
+- **Burndown** subtitle now spells out the scope creep that drives the gap between green-rising and red-not-falling: `150 open at start → 261 now (+451 added, −340 closed)`. Without this it's not obvious that remaining can climb even as closures pile up because more tickets were added than closed.
 
 ## [0.12.33] - 2026-05-18
 - New `selectedIids` filter — explicit iid whitelist for deep-linking to a specific set of tickets. Used by the Evergreen kiosk card: clicking it now opens the **list view** filtered to the exact evergreen iids (was a popover in 0.12.32). The kiosk's apply-filter patch also accepts a `layout` field that switches the main view to `graph` or `list` on landing. `resetFilters` clears `selectedIids`; the URL share codec deliberately ignores it (ephemeral, not worth sharing).

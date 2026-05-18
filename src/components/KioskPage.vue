@@ -343,6 +343,7 @@
             <span v-if="targetBurndown" class="k-section-sub">
               {{ targetBurndown.startLabel }} → today ({{ targetBurndown.windowDays }}d window)
               · {{ targetBurndown.initialOpen }} open at start → {{ targetBurndown.currentOpen }} now
+              (+{{ fmtNum(targetBurndown.addedInWindow) }} added, −{{ fmtNum(targetBurndown.closedInWindow) }} closed)
               <template v-if="targetBurndown.dueLabel"> · due {{ targetBurndown.dueLabel }}</template>
             </span>
           </div>
@@ -2404,6 +2405,10 @@ const targetBurndown = computed(() => {
     initialOpen, currentOpen,
     totalScope: scopeAcc,
     totalClosed: closedAcc,
+    // In-window event counts — surfaced in the subtitle so scope creep is obvious
+    // (`addedInWindow` is why remaining can rise even while closures pile up).
+    addedInWindow: createdEvents.length,
+    closedInWindow: closedEvents.length,
     scopeBaseline, closedBaseline,
     windowDays,
     maxY,

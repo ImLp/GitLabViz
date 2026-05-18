@@ -26,8 +26,8 @@
            ticket count is right-aligned so multiple group rows have their
            counts in a vertical column. The open/closed state is persisted to
            settings (and the URL) via the syncGroupHeader side-effect. -->
-      <template #header._group />
-      <template #item._group />
+      <template #header.data-table-group />
+      <template #item.data-table-group />
 
       <template #group-header="{ item, columns, toggleGroup, isGroupOpen }">
         <tr
@@ -86,8 +86,8 @@
         v-for="h in headers" :key="h.key"
         #[`header.${h.key}`]="{ column, toggleSort }"
       >
-        <!-- Stub columns (_color pip, _group spacer) get no drag / sort / resize. -->
-        <template v-if="column.key === '_color' || column.key === '_group'">
+        <!-- Hidden data-table-group stub gets no drag / sort / resize. -->
+        <template v-if="column.key === 'data-table-group'">
           <span />
         </template>
         <div
@@ -436,8 +436,9 @@ const currentState = () => ({
 // Headers honour user-resized widths if present, otherwise fall back to the
 // column's default. The table's `min-width` (set as a CSS variable on the root)
 // is the sum so the wrapper scrolls horizontally instead of squashing columns.
-// When grouping is active we prepend a stub `_group` header — Vuetify auto-
-// injects its own "Group" column otherwise (which we don't need: our
+// When grouping is active we prepend a hidden `data-table-group` stub — this
+// is the key Vuetify uses for its auto-injected group column, so providing
+// our own with width:0 + display:none CSS suppresses it (our
 // #group-header slot already renders a row spanning all columns). The stub
 // is zero-width and visually hidden via CSS.
 const headers = computed(() => {
@@ -451,21 +452,21 @@ const headers = computed(() => {
     })
     .filter(Boolean)
   if (props.groupingMode && props.groupingMode !== 'none') {
-    visible.unshift({ key: '_group', title: '', width: 0, sortable: false, headerProps: { class: 'il-group-stub' }, cellProps: { class: 'il-group-stub' } })
+    visible.unshift({ key: 'data-table-group', title: '', width: 0, sortable: false, headerProps: { class: 'il-group-stub' }, cellProps: { class: 'il-group-stub' } })
   }
   return visible
 })
 const totalWidth = computed(() => headers.value
-  .filter(h => h.key !== '_group')
+  .filter(h => h.key !== 'data-table-group')
   .reduce((s, h) => s + (Number(h.width) || 100), 0))
-// Cumulative left offsets of column boundaries (skipping the synthetic _group
+// Cumulative left offsets of column boundaries (skipping the hidden group
 // stub). Used to paint vertical dividers across the group-header row so the
 // column grid stays continuous through collapses.
 const columnDividerOffsets = computed(() => {
   const out = []
   let x = 0
   for (const h of headers.value) {
-    if (h.key === '_group') continue
+    if (h.key === 'data-table-group') continue
     x += Number(h.width) || 100
     out.push(x)
   }
@@ -507,7 +508,7 @@ const onHeaderContextMenu = (evt) => {
   if (!th) return
   evt.preventDefault()
   const key = th.getAttribute('data-col-key')
-  // Stub columns (_color, _group) have no key — open the menu with no column target.
+  // The hidden data-table-group stub has no key — open the menu with no column target.
   ctxMenu.colKey = key && defByKey[key] ? key : null
   ctxMenu.x = evt.clientX
   ctxMenu.y = evt.clientY
@@ -1244,8 +1245,10 @@ const avatarColor = (name) => {
 }
 .il-header:active { cursor: grabbing; }
 .il-iid-cell {
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  width: 100%;
   gap: 8px;
   min-width: 0;
 }
@@ -1406,16 +1409,6 @@ const avatarColor = (name) => {
   padding: 0 !important;
   border: 0 !important;
 }
-/* Tiny "colour pip" stub column — fixed 18px wide with the pip centered. */
-:deep(.il-stub-col) {
-  width: 18px !important;
-  min-width: 18px !important;
-  max-width: 18px !important;
-  padding: 0 !important;
-  text-align: left;
-  border-right: 0 !important;
-}
-:deep(.il-color-cell .il-row-color) { margin: 0; vertical-align: middle; }
 /* Right-click context menu (header) — section headers, list rows, drag hints. */
 .il-ctx-section {
   padding: 6px 12px 4px;
