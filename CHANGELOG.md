@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.12.41] - 2026-05-19
+- **Kiosk header surfaces data age + refresh failures.** A new "data: 5m ago" chip in the header keeps the room aware of how stale the wall is, and refresh failures no longer go quietly — when a sync fails (offline, GitLab down, expired token) a pulsing red "Refresh failed Xm ago" chip appears next to the clock, the refresh button itself flips red, and the tooltip shows the underlying error plus the timestamp of the first failure since the last success. The chip clears automatically on the next successful sync.
+
 ## [0.12.40] - 2026-05-19
 - **App-wide auto-update.** Always-on tabs / kiosks pick up new deploys automatically. The bootstrap update check (poll `current_version.json`, hard-reload via `?v=<newVersion>` cache-buster on a strictly-newer version) is no longer GitHub-Pages-only — it now runs on any HTTP host (internal Apache/nginx/IIS deployments included) and is skipped on `file://` (Electron) where there's no remote deploy to compare against. New **Check for app updates** combo box in Configuration → Display lets you set the poll interval (Disabled / 1m / 5m / 15m / 30m / 1h / 6h, default 5m). Reload only fires when a newer version is detected, so short intervals are safe — no churn while idle. Setting changes take effect immediately (no app restart needed).
 

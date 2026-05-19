@@ -128,6 +128,7 @@
         :nodes="nodes"
         :loading="loading"
         :last-updated="lastUpdated"
+        :error="error"
         :on-refresh="handleRefreshClick"
         :mode="kioskMode"
         :view-param="viewParam"

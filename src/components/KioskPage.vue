@@ -24,10 +24,19 @@
       </div>
       <div class="kiosk-head-right">
         <span class="kiosk-clock">{{ clock }}</span>
+        <span class="kiosk-data-age" :title="lastRefreshTitle">
+          <v-icon icon="mdi-database-clock-outline" size="x-small" />
+          {{ dataAgeLabel }}
+        </span>
+        <span v-if="lastFailedAt" class="kiosk-fail-chip" :title="failureTitle">
+          <v-icon icon="mdi-cloud-alert" size="x-small" />
+          Refresh failed {{ failureLabel }}
+        </span>
         <button
           type="button"
           class="kiosk-refresh-eta"
-          :title="`${lastRefreshTitle} — click to refresh now`"
+          :class="{ 'is-failing': lastFailedAt }"
+          :title="lastFailedAt ? `${failureTitle}\nClick to retry now` : `${lastRefreshTitle} — click to refresh now`"
           :disabled="loading"
           @click="onManualRefresh"
         >
@@ -1274,6 +1283,7 @@ const props = defineProps({
   nodes: { type: Object, default: () => ({}) },
   loading: { type: Boolean, default: false },
   lastUpdated: { type: Number, default: null }, // ms epoch
+  error: { type: String, default: '' },        // last loader error (empty = healthy)
   onRefresh: { type: Function, default: null },
   mode: { type: String, default: '' },         // current mode id (driven by URL via parent)
   viewParam: { type: String, default: '' }     // 'paused=1/cycle=10/refresh=2'
@@ -1438,6 +1448,22 @@ const lastRefreshTitle = computed(() => {
   return `Last refreshed: ${new Date(props.lastUpdated).toLocaleString()}`
 })
 
+// Surface refresh failures (offline / token expiry / GitLab down) on the wall instead
+// of letting them fail silently. Stamp the first failure since the last success; clear
+// it on the next successful sync (lastUpdated bumps).
+const lastFailedAt = ref(null)
+watch(() => props.error, (e) => {
+  if (e && !props.loading && !lastFailedAt.value) lastFailedAt.value = Date.now()
+})
+watch(() => props.lastUpdated, () => { lastFailedAt.value = null })
+const dataAgeLabel = computed(() => props.lastUpdated ? relTime(props.lastUpdated) : 'never')
+const failureLabel = computed(() => lastFailedAt.value ? relTime(lastFailedAt.value) : '')
+const failureTitle = computed(() => {
+  if (!lastFailedAt.value) return ''
+  const since = new Date(lastFailedAt.value).toLocaleString()
+  return `Refresh failing since ${since}\n${props.error || 'unknown error'}`
+})
+
 const onManualRefresh = () => {
   if (props.loading || typeof props.onRefresh !== 'function') return
   props.onRefresh()
@@ -1550,6 +1576,7 @@ watch(
 )
 
 onMounted(() => {
+  if (props.error && !props.loading) lastFailedAt.value = Date.now()
   startCycle()
   startRefresh()
   nowTickTimer = setInterval(() => { nowTick.value = Date.now() }, 1000)
@@ -3592,6 +3619,31 @@ const relTime = (ts) => {
 }
 .kiosk-refresh-eta:hover:not(:disabled) { background: rgba(127, 127, 127, 0.22); border-color: rgba(127, 127, 127, 0.3); }
 .kiosk-refresh-eta:disabled { cursor: default; opacity: 0.7; }
+.kiosk-refresh-eta.is-failing {
+  background: rgba(244, 67, 54, 0.18);
+  border-color: rgba(244, 67, 54, 0.5);
+  color: #ef9a9a;
+}
+.kiosk-data-age {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+.kiosk-fail-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(244, 67, 54, 0.18);
+  border: 1px solid rgba(244, 67, 54, 0.5);
+  color: #ef9a9a;
+  font-variant-numeric: tabular-nums;
+  animation: kiosk-fail-pulse 2.4s ease-in-out infinite;
+}
+@keyframes kiosk-fail-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(244, 67, 54, 0); }
+  50%      { box-shadow: 0 0 0 4px rgba(244, 67, 54, 0.18); }
+}
 .kiosk-icon-btn {
   width: 28px;
   height: 28px;
