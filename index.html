@@ -13,6 +13,23 @@
         const LOCAL_VERSION = '%APP_VERSION%'
         const IS_PROD_BUILD = '%IS_PROD_BUILD%' === 'true'
 
+        // Strip any ?v=… cache-bust param ASAP — runs before anything else so the
+        // dirty URL after a forced reload is visible for the bare minimum time
+        // (just the navigation flash). The captured value feeds the version check
+        // below so a stale-server race (server still serves old HTML for the bumped
+        // version) doesn't loop.
+        let arrivedWithV = ''
+        try {
+          const params = new URLSearchParams(location.search)
+          arrivedWithV = params.get('v') || ''
+          if (params.has('v')) {
+            params.delete('v')
+            const next = new URL(location.href)
+            next.search = params.toString() ? `?${params.toString()}` : ''
+            history.replaceState(null, '', next.toString())
+          }
+        } catch {}
+
         const parseSemver = (v) => {
           const s = String(v || '').trim().replace(/^v/i, '')
           const core = s.split('-')[0]
@@ -30,19 +47,6 @@
           return false
         }
 
-        const removeCacheBustParamIfCurrent = () => {
-          try {
-            const params = new URLSearchParams(location.search)
-            const v = params.get('v') || ''
-            if (v && v === LOCAL_VERSION) {
-              params.delete('v')
-              const next = new URL(location.href)
-              next.search = params.toString() ? `?${params.toString()}` : ''
-              history.replaceState(null, '', next.toString())
-            }
-          } catch {}
-        }
-
         // Exposed so App.vue / kiosk can re-check on "Refresh data" without duplicating logic.
         // Works on any HTTP host (GitHub Pages, internal Apache/nginx, …); skipped on
         // file:// (Electron) where there's no remote deploy to compare against.
@@ -50,8 +54,6 @@
           try {
             const isHttp = location.protocol === 'http:' || location.protocol === 'https:'
             if (!IS_PROD_BUILD || !isHttp) return false
-
-            removeCacheBustParamIfCurrent()
 
             const u = new URL('current_version.json', location.href)
             u.search = ''
@@ -65,8 +67,9 @@
             const remoteVersion = remote && remote.version ? String(remote.version) : ''
             if (!remoteVersion || !LOCAL_VERSION) return false
 
-            const currentV = new URLSearchParams(location.search).get('v') || ''
-            if (currentV === remoteVersion) return false
+            // Loop guard: we just arrived from `?v=remoteVersion` but LOCAL_VERSION
+            // still reads as older. Server is stale — give up rather than reload again.
+            if (arrivedWithV && arrivedWithV === remoteVersion) return false
 
             if (!isNewer(remoteVersion, LOCAL_VERSION)) return false
 

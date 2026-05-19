@@ -155,19 +155,19 @@
             <v-divider class="my-2"></v-divider>
           </div>
 
-          <!-- Graph / List view switcher — appears above presets so it doesn't
-               compete with the canvas overlay area. Hotkey: Shift+V. -->
-          <v-btn-toggle
-            v-model="viewLayoutProxy"
+          <!-- View switcher — Graph/List are layouts, Kiosk is a route.
+               Using v-btn-group (visual only) + :active so the Kiosk click
+               doesn't disturb the layout selection. Hotkeys: Shift+V / Shift+K. -->
+          <v-btn-group
             density="compact"
-            mandatory
             variant="outlined"
             divided
             class="layout-toggle mb-3 w-100"
           >
-            <v-btn value="graph" size="small" class="flex-grow-1 text-none" prepend-icon="mdi-graph-outline" title="Graph view (Shift+V)">Graph</v-btn>
-            <v-btn value="list" size="small" class="flex-grow-1 text-none" prepend-icon="mdi-format-list-bulleted-square" title="List view (Shift+V)">List</v-btn>
-          </v-btn-toggle>
+            <v-btn :active="viewLayoutProxy === 'graph'" size="small" class="flex-grow-1 text-none" prepend-icon="mdi-graph-outline" title="Graph view (Shift+V)" @click="viewLayoutProxy = 'graph'">Graph</v-btn>
+            <v-btn :active="viewLayoutProxy === 'list'" size="small" class="flex-grow-1 text-none" prepend-icon="mdi-format-list-bulleted-square" title="List view (Shift+V)" @click="viewLayoutProxy = 'list'">List</v-btn>
+            <v-btn size="small" class="flex-grow-1 text-none" prepend-icon="mdi-monitor-dashboard" title="Open kiosk dashboard (Shift+K)" @click="onEnterKiosk">Kiosk</v-btn>
+          </v-btn-group>
 
           <!-- Presets Section -->
           <div
@@ -399,7 +399,8 @@ const props = defineProps({
   onFitGraph: { type: Function, required: true },
   onReflowGraph: { type: Function, required: true },
   onResetFilters: { type: Function, required: true },
-  onShowSvnLog: { type: Function, required: true }
+  onShowSvnLog: { type: Function, required: true },
+  onEnterKiosk: { type: Function, required: true }
 })
 
 const emit = defineEmits(['update:vizMode', 'update:svnVizLimit', 'update:viewLayout'])

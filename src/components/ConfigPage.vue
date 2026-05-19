@@ -61,8 +61,31 @@
                 hide-details
               />
               <div class="text-caption text-medium-emphasis mt-2">
-                System follows your browser/OS color scheme.
+                System follows your browser/OS color scheme. Schedule swaps to dark outside the configured light-hours window.
               </div>
+
+              <v-row v-if="themeSetting === 'schedule'" dense class="mt-3">
+                <v-col cols="6">
+                  <v-text-field
+                    v-model.number="settings.uiState.ui.themeSchedule.lightStart"
+                    type="number" min="0" max="23"
+                    label="Light from (hour)"
+                    variant="outlined" density="comfortable"
+                    prepend-inner-icon="mdi-weather-sunset-up"
+                    hide-details
+                  />
+                </v-col>
+                <v-col cols="6">
+                  <v-text-field
+                    v-model.number="settings.uiState.ui.themeSchedule.lightEnd"
+                    type="number" min="0" max="23"
+                    label="Light until (hour)"
+                    variant="outlined" density="comfortable"
+                    prepend-inner-icon="mdi-weather-sunset-down"
+                    hide-details
+                  />
+                </v-col>
+              </v-row>
 
               <v-divider class="my-4" />
 
@@ -816,6 +839,13 @@
                 density="comfortable"
                 prepend-inner-icon="mdi-flag"
               />
+              <v-checkbox
+                v-model="settings.uiState.kiosk.etaAlwaysExpanded"
+                label="Always show ETA details (no hover required)"
+                hint="On the Target screen, render the throughput / formula / timeline panel inline below the ETA chip. Useful for wall displays where nobody can hover."
+                persistent-hint hide-details="auto" density="compact"
+                class="mt-2"
+              />
 
               <v-divider class="my-4" />
               <div class="text-overline text-medium-emphasis mb-2">Screen burn-in protection</div>
@@ -1411,7 +1441,8 @@ const { settings } = useSettingsStore()
 const themeItems = [
   { title: 'System (browser)', value: 'system' },
   { title: 'Dark', value: 'dark' },
-  { title: 'Light', value: 'light' }
+  { title: 'Light', value: 'light' },
+  { title: 'Schedule (light by day, dark at night)', value: 'schedule' }
 ]
 const themeSetting = computed({
   get: () => settings.uiState.ui.theme || 'system',

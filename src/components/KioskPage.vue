@@ -148,15 +148,16 @@
 
           <v-tooltip
             v-if="targetForecast"
+            :disabled="etaAlwaysExpanded"
             location="bottom start"
             :open-delay="120" :close-delay="80"
             content-class="k-eta-tip-wrap"
           >
             <template #activator="{ props: tipProps }">
               <div
-                v-bind="tipProps"
-                class="k-target-eta k-eta-hoverable"
-                :class="`is-${targetForecast.status}`"
+                v-bind="etaAlwaysExpanded ? {} : tipProps"
+                class="k-target-eta"
+                :class="[`is-${targetForecast.status}`, { 'k-eta-hoverable': !etaAlwaysExpanded }]"
               >
                 <v-icon :icon="ETA_ICON[targetForecast.status]" />
                 <div class="k-target-eta-main">
@@ -172,10 +173,13 @@
                   </template>
                   <span class="k-target-eta-msg">· {{ targetForecast.message }}</span>
                 </div>
-                <v-icon icon="mdi-information-outline" size="16" class="k-eta-info" />
+                <v-icon v-if="!etaAlwaysExpanded" icon="mdi-information-outline" size="16" class="k-eta-info" />
               </div>
             </template>
 
+            <!-- Body is reused for both the floating tooltip (when collapsed) and the inline panel
+                 below. The shared snippet lives in src/utils/etaDetailsTemplate isn't great here
+                 because we'd lose scoped CSS, so we accept one duplication just below. -->
             <div class="k-eta-tip" :class="`is-${targetForecast.status}`">
               <div class="k-eta-tip-head">
                 <v-icon :icon="ETA_ICON[targetForecast.status]" />
@@ -279,6 +283,111 @@
               </div>
             </div>
           </v-tooltip>
+
+          <!-- Always-expanded variant of the same panel — shown inline below the chip when
+               the option is on (Configuration → Kiosk → "Always show ETA details"). -->
+          <div v-if="targetForecast && etaAlwaysExpanded" class="k-eta-tip k-eta-tip-inline" :class="`is-${targetForecast.status}`">
+            <div class="k-eta-tip-head">
+              <v-icon :icon="ETA_ICON[targetForecast.status]" />
+              <div class="k-eta-tip-head-text">
+                <div class="k-eta-tip-title">
+                  <template v-if="targetForecast.status === 'done'">Milestone complete</template>
+                  <template v-else-if="targetForecast.status === 'stalled'">No ETA · stalled</template>
+                  <template v-else-if="targetForecast.status === 'on-track'">On track · ETA {{ targetForecast.eta }}</template>
+                  <template v-else-if="targetForecast.status === 'late'">{{ targetForecast.lateDays }}d late · ETA {{ targetForecast.eta }}</template>
+                  <template v-else>ETA {{ targetForecast.eta }} · no due date</template>
+                </div>
+                <div class="k-eta-tip-sub">{{ targetForecast.message }}</div>
+              </div>
+            </div>
+
+            <div class="k-eta-tip-section">
+              <div class="k-eta-tip-section-title">
+                Last {{ targetForecast.lookbackDays }} days
+                <span class="k-eta-tip-legend">
+                  <i class="k-eta-sw k-eta-sw-closed" /> closed
+                  <i class="k-eta-sw k-eta-sw-added" /> added
+                </span>
+              </div>
+              <svg v-if="etaTipChart" :viewBox="`0 0 ${etaTipChart.W} ${etaTipChart.H}`" class="k-eta-tip-svg">
+                <line
+                  :x1="etaTipChart.padL" :x2="etaTipChart.W - etaTipChart.padR"
+                  :y1="etaTipChart.axisY" :y2="etaTipChart.axisY"
+                  stroke="rgba(200,200,200,0.25)" stroke-width="1"
+                />
+                <g v-for="b in etaTipChart.bars" :key="b.i">
+                  <rect v-if="b.cH > 0" :x="b.x" :y="b.cY" :width="b.w" :height="b.cH" fill="#66bb6a" rx="1" />
+                  <rect v-if="b.aH > 0" :x="b.x" :y="b.aY" :width="b.w" :height="b.aH" fill="#ef5350" rx="1" />
+                </g>
+                <text :x="etaTipChart.padL" :y="etaTipChart.H - 4" font-size="10" fill="rgba(200,200,200,0.7)">{{ etaTipChart.leftLabel }}</text>
+                <text :x="etaTipChart.W - etaTipChart.padR" :y="etaTipChart.H - 4" font-size="10" text-anchor="end" fill="rgba(200,200,200,0.7)">{{ etaTipChart.rightLabel }}</text>
+                <text :x="etaTipChart.padL - 4" :y="etaTipChart.padT + 8" font-size="10" text-anchor="end" fill="rgba(200,200,200,0.5)">peak {{ etaTipChart.max }}</text>
+              </svg>
+            </div>
+
+            <div class="k-eta-tip-section">
+              <div class="k-eta-tip-section-title">Throughput</div>
+              <div class="k-eta-tip-grid">
+                <div class="k-eta-tip-cell">
+                  <div class="k-eta-tip-cell-num k-eta-pos">{{ targetForecast.closedRecent }}</div>
+                  <div class="k-eta-tip-cell-lbl">closed in {{ targetForecast.lookbackDays }}d</div>
+                  <div class="k-eta-tip-cell-sub">≈ {{ targetForecast.closedPerWeek }}/wk</div>
+                </div>
+                <div class="k-eta-tip-cell">
+                  <div class="k-eta-tip-cell-num k-eta-neg">{{ targetForecast.addedRecent }}</div>
+                  <div class="k-eta-tip-cell-lbl">added in {{ targetForecast.lookbackDays }}d</div>
+                  <div class="k-eta-tip-cell-sub">≈ {{ targetForecast.addedPerWeek }}/wk</div>
+                </div>
+                <div class="k-eta-tip-cell">
+                  <div class="k-eta-tip-cell-num" :class="targetForecast.netPerWeek > 0 ? 'k-eta-pos' : 'k-eta-neg'">
+                    {{ targetForecast.netPerWeek > 0 ? '+' : '' }}{{ targetForecast.netPerWeek }}
+                  </div>
+                  <div class="k-eta-tip-cell-lbl">net /wk</div>
+                  <div class="k-eta-tip-cell-sub">closed − added</div>
+                </div>
+                <div class="k-eta-tip-cell">
+                  <div class="k-eta-tip-cell-num">{{ targetForecast.open }}</div>
+                  <div class="k-eta-tip-cell-lbl">open</div>
+                  <div class="k-eta-tip-cell-sub">remaining</div>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="targetForecast.weeksToShip != null" class="k-eta-tip-section">
+              <div class="k-eta-tip-section-title">How the ETA is calculated</div>
+              <div class="k-eta-tip-formula">
+                <code>open ÷ net/wk = weeks</code><br>
+                <code>{{ targetForecast.open }} ÷ {{ targetForecast.netPerWeek }} = {{ targetForecast.weeksToShip }}w</code>
+                → <strong>{{ targetForecast.eta }}</strong>
+              </div>
+              <svg v-if="etaTipTimeline" :viewBox="`0 0 ${etaTipTimeline.W} ${etaTipTimeline.H}`" class="k-eta-tip-svg k-eta-tip-timeline">
+                <line :x1="0" :x2="etaTipTimeline.W" :y1="etaTipTimeline.y" :y2="etaTipTimeline.y" stroke="rgba(200,200,200,0.2)" />
+                <rect
+                  v-for="(s, si) in etaTipTimeline.segs" :key="'s' + si"
+                  :x="Math.min(s.x1, s.x2)" :y="s.y - 4"
+                  :width="Math.abs(s.x2 - s.x1)" :height="8"
+                  :fill="s.kind === 'late' ? 'rgba(239,83,80,0.55)' : 'rgba(102,187,106,0.5)'"
+                  rx="2"
+                />
+                <g v-for="(t, ti) in etaTipTimeline.ticks" :key="'t' + ti">
+                  <circle
+                    :cx="t.x" :cy="etaTipTimeline.y" r="4"
+                    :fill="t.kind === 'today' ? '#90a4ae' : (t.kind === 'due' ? '#ffd54f' : '#42a5f5')"
+                    stroke="rgba(0,0,0,0.5)" stroke-width="0.5"
+                  />
+                  <text
+                    :x="t.x" :y="etaTipTimeline.y + 16"
+                    font-size="10" text-anchor="middle"
+                    :fill="t.kind === 'today' ? 'rgba(200,200,200,0.8)' : (t.kind === 'due' ? '#ffd54f' : '#90caf9')"
+                  >{{ t.label }}</text>
+                </g>
+              </svg>
+            </div>
+
+            <div class="k-eta-tip-foot">
+              Linear extrapolation from the last {{ targetForecast.lookbackDays }} days · doesn't account for holidays / team changes.
+            </div>
+          </div>
 
           <div class="k-target-recent">
             <div class="k-target-recent-card">
@@ -658,7 +767,7 @@
           v-for="(row, idx) in heatmaps" :key="row.id"
           class="k-heatmap-row"
         >
-          <div class="k-heatmap-row-title" :style="{ color: HEATMAP_CONFIGS[row.id].palette[4] }">
+          <div class="k-heatmap-row-title" :style="{ color: heatmapPalette(row.id)[4] }">
             {{ HEATMAP_CONFIGS[row.id].label }}
           </div>
           <svg
@@ -691,7 +800,7 @@
                 :x="c.x" :y="c.y"
                 :width="row.data.cellSize" :height="row.data.cellSize"
                 rx="2" ry="2"
-                :fill="c.inRange ? row.data.cfg.palette[c.level] : 'rgba(127,127,127,0.04)'"
+                :fill="c.inRange ? heatmapPalette(row.id)[c.level] : (isLightTheme ? 'rgba(0,0,0,0.03)' : 'rgba(127,127,127,0.04)')"
                 :class="{ 'k-hm-clickable': c.inRange && c.count > 0 }"
                 @click="onHeatmapCellClick(row.id, c)"
               ><title v-if="c.count > 0">{{ c.label }}: {{ c.count }}</title></rect>
@@ -701,7 +810,7 @@
 
         <div class="k-heatmap-legend">
           <span>Less</span>
-          <i v-for="i in [0, 1, 2, 3, 4]" :key="'hm-leg-' + i" class="k-hm-swatch" :style="{ background: HEATMAP_CONFIGS.heatmapAll.palette[i] }" />
+          <i v-for="i in [0, 1, 2, 3, 4]" :key="'hm-leg-' + i" class="k-hm-swatch" :style="{ background: heatmapPalette('heatmapAll')[i] }" />
           <span>More</span>
         </div>
       </section>
@@ -742,7 +851,7 @@
                 :x="c.x" :y="c.y"
                 :width="c.w" :height="c.h"
                 rx="2" ry="2"
-                :fill="c.inRange ? row.palette[c.level] : 'rgba(127,127,127,0.04)'"
+                :fill="c.inRange ? row.palette[c.level] : (isLightTheme ? 'rgba(0,0,0,0.03)' : 'rgba(127,127,127,0.04)')"
                 :class="{ 'k-hm-clickable': c.inRange && c.count > 0 }"
                 @click="onHeatmapByLabelCellClick(row.label, c)"
               ><title v-if="c.count > 0">{{ row.label }}: {{ c.count }} events</title></rect>
@@ -751,7 +860,7 @@
         </svg>
         <div v-if="heatmapByLabel" class="k-heatmap-legend">
           <span>Less</span>
-          <i v-for="i in [0, 1, 2, 3, 4]" :key="'hbl-leg-' + i" class="k-hm-swatch" :style="{ background: HEATMAP_BY_LABEL_LEGEND[i] }" />
+          <i v-for="i in [0, 1, 2, 3, 4]" :key="'hbl-leg-' + i" class="k-hm-swatch" :style="{ background: heatmapByLabelLegend(i) }" />
           <span>More</span>
           <span style="opacity: 0.6; margin-left: 12px;">· each row tinted by label hash</span>
         </div>
@@ -1614,6 +1723,7 @@ onMounted(() => {
   startRefresh()
   safetyReloadTimer = setInterval(checkSafetyReload, 60 * 1000)
   nowTickTimer = setInterval(() => { nowTick.value = Date.now() }, 1000)
+  window.addEventListener('app-theme-changed', onThemeChanged)
   pixelShiftTimer = setInterval(tickPixelShift, 60000)
   tickPixelShift()
   window.addEventListener('keydown', handleWindowKey)
@@ -1625,6 +1735,7 @@ onUnmounted(() => {
   if (refreshTimer) clearInterval(refreshTimer)
   if (safetyReloadTimer) clearInterval(safetyReloadTimer)
   if (nowTickTimer) clearInterval(nowTickTimer)
+  window.removeEventListener('app-theme-changed', onThemeChanged)
   window.removeEventListener('keydown', handleWindowKey)
   if (burndownRO)       { burndownRO.disconnect();       burndownRO = null }
   if (heatmapRO)        { heatmapRO.disconnect();        heatmapRO = null }
@@ -1778,8 +1889,10 @@ const velocity = computed(() => {
   const t1 = Math.max(1, Math.round(peakAbs * 0.10))
   const t2 = Math.max(t1 + 1, Math.round(peakAbs * 0.25))
   const t3 = Math.max(t2 + 1, Math.round(peakAbs * 0.50))
-  const paletteCreated = HEATMAP_CONFIGS.heatmapCreated.palette
-  const paletteClosed  = HEATMAP_CONFIGS.heatmapClosed.palette
+  const paletteCreated = heatmapPalette('heatmapCreated')
+  const paletteClosed  = heatmapPalette('heatmapClosed')
+  const emptyBg   = isLightTheme.value ? 'rgba(0,0,0,0.03)' : 'rgba(127,127,127,0.04)'
+  const balanceBg = isLightTheme.value ? 'rgba(0,0,0,0.12)' : 'rgba(127,127,127,0.22)'
   for (const c of cells) {
     const abs = Math.abs(c.net)
     let level = 0
@@ -1791,14 +1904,14 @@ const velocity = computed(() => {
     }
     c.level = level
     if (!c.inRange || (c.created === 0 && c.closed === 0)) {
-      c.bg = 'rgba(127,127,127,0.04)'
+      c.bg = emptyBg
     } else if (c.net > 0) {
       c.bg = paletteClosed[level]
     } else if (c.net < 0) {
       c.bg = paletteCreated[level]
     } else {
       // Equal volume of creates and closes — a balanced day, neutral grey.
-      c.bg = 'rgba(127,127,127,0.22)'
+      c.bg = balanceBg
     }
   }
   // Group into week rows for the calendar layout: { num: ISO-week, cells: [Mon..Sun] }.
@@ -2015,6 +2128,7 @@ const hotLabelsActiveBuckets = computed(() => {
 
 // Pinned "target" milestone (e.g. the version we're driving toward).
 const targetMilestone = computed(() => String(settings.uiState.kiosk?.targetMilestone || '').trim())
+const etaAlwaysExpanded = computed(() => !!settings.uiState.kiosk?.etaAlwaysExpanded)
 
 // Milestones — completion % per active milestone (open + closed counted)
 const milestonesCfg = computed(() => settings.uiState.kiosk?.modeConfig?.milestones || {})
@@ -2706,13 +2820,27 @@ const activityFeed = computed(() => {
 // and only differ in which event kinds they count + which palette they use.
 // Color semantics across the kiosk: created = red (incoming work / backlog growth),
 // closed = green (completed / good), all-activity = purple (neutral).
+// Two palettes per heatmap kind — darker variants tuned for the dark theme, lighter
+// pastel variants for the light theme. Without this, the dark reds/greens look like
+// ink stains on white paper in light mode and the empty cells (rgba(127,127,127,0.12))
+// dissolve into the background.
 const HEATMAP_CONFIGS = {
   heatmapCreated: { kinds: ['opened'], label: 'Tickets created',
-    palette: ['rgba(127,127,127,0.12)', '#5d1a1a', '#8c1d1d', '#d32f2f', '#ef5350'] },
+    palette:      ['rgba(127,127,127,0.12)', '#5d1a1a', '#8c1d1d', '#d32f2f', '#ef5350'],
+    paletteLight: ['rgba(0,0,0,0.06)',       '#ffcdd2', '#ef9a9a', '#e57373', '#c62828'] },
   heatmapClosed:  { kinds: ['closed'],  label: 'Tickets closed',
-    palette: ['rgba(127,127,127,0.12)', '#0e4429', '#006d32', '#26a641', '#39d353'] },
+    palette:      ['rgba(127,127,127,0.12)', '#0e4429', '#006d32', '#26a641', '#39d353'],
+    paletteLight: ['rgba(0,0,0,0.06)',       '#c8e6c9', '#81c784', '#4caf50', '#2e7d32'] },
   heatmapAll:     { kinds: ['opened', 'closed'], label: 'All ticket activity',
-    palette: ['rgba(127,127,127,0.12)', '#3a1d5b', '#553098', '#a371f7', '#d2a8ff'] }
+    palette:      ['rgba(127,127,127,0.12)', '#3a1d5b', '#553098', '#a371f7', '#d2a8ff'],
+    paletteLight: ['rgba(0,0,0,0.06)',       '#e1bee7', '#ce93d8', '#ab47bc', '#6a1b9a'] }
+}
+const isLightTheme = ref(typeof document !== 'undefined' && document.documentElement.dataset.theme === 'light')
+const onThemeChanged = (e) => { isLightTheme.value = (e?.detail?.theme || document.documentElement.dataset.theme) === 'light' }
+// Resolve the themed palette for a given heatmap mode id (or a cfg object directly).
+const heatmapPalette = (modeOrCfg) => {
+  const cfg = (typeof modeOrCfg === 'string') ? HEATMAP_CONFIGS[modeOrCfg] : modeOrCfg
+  return (isLightTheme.value && cfg.paletteLight) ? cfg.paletteLight : cfg.palette
 }
 const heatmapCfg = computed(() => settings.uiState.kiosk?.modeConfig?.heatmap || {})
 // `heatmapSvgRef`, `heatmapSize`, `setHeatmapSvgRef` are declared up top alongside the
@@ -2851,6 +2979,16 @@ const labelHue = (s) => {
 }
 const labelHashedPalette = (label) => {
   const hue = labelHue(label)
+  if (isLightTheme.value) {
+    // Lighter pastels with deeper top-end so the ramp stays readable on white.
+    return [
+      'rgba(0,0,0,0.06)',
+      `hsl(${hue}, 60%, 86%)`,
+      `hsl(${hue}, 55%, 70%)`,
+      `hsl(${hue}, 60%, 50%)`,
+      `hsl(${hue}, 70%, 35%)`
+    ]
+  }
   return [
     'rgba(127,127,127,0.12)',
     `hsl(${hue}, 45%, 22%)`,
@@ -2859,7 +2997,9 @@ const labelHashedPalette = (label) => {
     `hsl(${hue}, 72%, 68%)`
   ]
 }
-const HEATMAP_BY_LABEL_LEGEND = ['rgba(127,127,127,0.12)', 'rgba(160,160,160,0.25)', 'rgba(180,180,180,0.45)', 'rgba(200,200,200,0.65)', 'rgba(220,220,220,0.85)']
+const HEATMAP_BY_LABEL_LEGEND_DARK  = ['rgba(127,127,127,0.12)', 'rgba(160,160,160,0.25)', 'rgba(180,180,180,0.45)', 'rgba(200,200,200,0.65)', 'rgba(220,220,220,0.85)']
+const HEATMAP_BY_LABEL_LEGEND_LIGHT = ['rgba(0,0,0,0.06)',       'rgba(0,0,0,0.15)',       'rgba(0,0,0,0.30)',       'rgba(0,0,0,0.50)',       'rgba(0,0,0,0.75)']
+const heatmapByLabelLegend = (level) => (isLightTheme.value ? HEATMAP_BY_LABEL_LEGEND_LIGHT : HEATMAP_BY_LABEL_LEGEND_DARK)[level]
 const heatmapByLabelCfg = computed(() => settings.uiState.kiosk?.modeConfig?.heatmapByLabel || {})
 const heatmapByLabel = computed(() => {
   if (currentMode.value !== 'heatmapByLabel') return null
@@ -3931,6 +4071,16 @@ const filterBlocked    = () => applyFilter({ selectedStatuses: ['Blocked', 'On H
 .k-eta-hoverable { cursor: help; position: relative; }
 .k-eta-hoverable .k-eta-info { opacity: 0.45; margin-left: auto; }
 .k-eta-hoverable:hover .k-eta-info { opacity: 0.85; }
+/* Inline (always-expanded) variant: same body styling as the floating tip but
+   sits below the chip on the page instead of as a popover. Border + bg match the
+   tooltip's wrap so the visual is consistent. */
+.k-eta-tip-inline {
+  margin-top: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(20, 20, 22, 0.55);
+  border-radius: 8px;
+  max-width: 720px;
+}
 
 /* Rich ETA hover (the outer .k-eta-tip-wrap is Vuetify-rendered outside this
    component's scope — its rule lives in a separate unscoped <style> block.) */

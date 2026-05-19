@@ -72,13 +72,17 @@ export const defaultSettings = () => ({
       showTemplates: true,
       showDisplay: true,
       showAdvancedSim: false,
-      theme: 'system', // 'system' | 'dark' | 'light'
+      theme: 'system', // 'system' | 'dark' | 'light' | 'schedule'
+      // Active when `theme === 'schedule'`: light theme between [lightStart..lightEnd)
+      // local hours, dark otherwise. `lightStart === lightEnd` means always dark;
+      // `lightStart > lightEnd` wraps midnight (e.g. 18..6 = "light overnight").
+      themeSchedule: { lightStart: 7, lightEnd: 19 },
       currentTemplateName: '',
       focusMode: false, // hides sidebar + banners, leaving only the graph
       // How often to poll current_version.json and hard-reload when a newer build ships.
       // Reload only fires when a strictly newer version is detected, so short intervals
       // are safe (no churn on idle deploys). 0 = disabled.
-      updateCheckMinutes: 60
+      updateCheckMinutes: 120
     },
     hotkeys: {}, // action id -> combo string; empty = use built-in defaults
     kiosk: {
@@ -98,6 +102,10 @@ export const defaultSettings = () => ({
       // Milestone title we're driving toward (free-form string matching `raw.milestone.title`).
       // Used by the 'target' focus mode and highlighted in the milestones list. Empty = no target.
       targetMilestone: '',
+      // When true, the rich ETA breakdown (throughput grid, formula, timeline) is shown
+      // inline below the chip on the Target screen instead of only on hover. Useful for
+      // wall displays where the room can't hover.
+      etaAlwaysExpanded: false,
       // Screen burn-in protection for always-on office displays.
       // `pixelShift`: nudge the whole kiosk by a few px every ~60s (imperceptible
       // to viewers but no single pixel stays the same colour for long).

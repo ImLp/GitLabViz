@@ -1,16 +1,28 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 
+// hour ∈ [start..end) in local time, with wrap-around when start > end (overnight).
+const hourInRange = (hour, start, end) => {
+  if (start === end) return false
+  if (start < end) return hour >= start && hour < end
+  return hour >= start || hour < end
+}
+
 export function useAppTheme ({ settings, vuetifyTheme }) {
   const systemPrefersDark = ref(false)
   let systemMql = null
   let onMqlChange = null
+  let scheduleTimer = null
 
   const getEffectiveThemeName = () => {
-    const pref = (settings.uiState && settings.uiState.ui && settings.uiState.ui.theme)
-      ? settings.uiState.ui.theme
-      : 'system'
+    const ui = settings.uiState && settings.uiState.ui
+    const pref = (ui && ui.theme) ? ui.theme : 'system'
     if (pref === 'dark') return 'dark'
     if (pref === 'light') return 'light'
+    if (pref === 'schedule') {
+      const sch = (ui && ui.themeSchedule) || { lightStart: 7, lightEnd: 19 }
+      const h = new Date().getHours()
+      return hourInRange(h, Number(sch.lightStart) || 0, Number(sch.lightEnd) || 0) ? 'light' : 'dark'
+    }
     return systemPrefersDark.value ? 'dark' : 'light'
   }
 
@@ -33,7 +45,11 @@ export function useAppTheme ({ settings, vuetifyTheme }) {
 
     applyTheme()
     watch(() => settings.uiState.ui.theme, () => applyTheme())
+    watch(() => settings.uiState.ui.themeSchedule, () => applyTheme(), { deep: true })
     watch(systemPrefersDark, () => applyTheme())
+    // 60s tick re-applies when crossing the schedule boundary. No-op when the
+    // computed theme name didn't change (Vuetify just re-sets the same class).
+    scheduleTimer = setInterval(applyTheme, 60 * 1000)
   })
 
   onUnmounted(() => {
@@ -44,6 +60,7 @@ export function useAppTheme ({ settings, vuetifyTheme }) {
     } catch {}
     systemMql = null
     onMqlChange = null
+    if (scheduleTimer) { clearInterval(scheduleTimer); scheduleTimer = null }
   })
 
   return { systemPrefersDark, getEffectiveThemeName, applyTheme }

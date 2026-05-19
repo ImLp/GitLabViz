@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.12.49] - 2026-05-19
+- **Heatmaps theme-aware in light mode.** The Activity heatmap, Activity-by-label heatmap and Velocity calendar were tuned for dark backgrounds — empty cells (`rgba(127,127,127,0.12)`) dissolved into the white page in light mode, and the dark reds / greens read like ink stains. Each kind now ships a parallel light-mode palette (pastel-to-deep ramps inspired by the Material palette) plus theme-appropriate empty-cell and balanced-day greys. The label-hashed palette and the by-label legend got the same treatment. Switches live via the existing `app-theme-changed` event — no reload needed when the schedule flips.
+
+## [0.12.48] - 2026-05-19
+- New **Always show ETA details** option in Configuration → Kiosk → Target. When on, the rich ETA breakdown (14-day spark-bar, throughput grid, formula, timeline) renders inline below the chip on the Target screen instead of being hidden behind a hover tooltip — useful for wall displays where the room can't hover. The chip's "info" hint icon and hover affordance are suppressed in inline mode. Default off (existing hover-only behaviour preserved).
+
+## [0.12.47] - 2026-05-19
+- **Config back-arrow returns to where you came from.** Opening Configuration from the kiosk and then clicking back now restores the kiosk instead of dumping you to the main page. Same fix applies symmetrically for ChatTools → Config → back. The previous page is captured at the moment Config opens, so URL-paste entries (`#/config/...`) still fall back to main.
+
+## [0.12.46] - 2026-05-19
+- New **Schedule** option in the Theme dropdown (Configuration → Display) — light theme during configurable office hours, dark theme outside. Two extra hour fields appear when selected (default 7..19); `start === end` means always dark, `start > end` wraps midnight (e.g. 18..6 = light overnight). The theme re-evaluates every minute so the wall flips automatically when crossing the boundary, with no reload needed. Toggle hotkey now cycles light → dark → system → schedule.
+
+## [0.12.45] - 2026-05-19
+- **Tighter `?v=` cleanup after auto-update reload.** The cache-bust query param is now stripped synchronously at the very top of the page-load script (was: only after a successful version-check fetch, and only when the value matched `LOCAL_VERSION` exactly). The dirty URL is therefore visible only for the duration of the navigation flash — no longer than strictly necessary. Captured the original value before stripping so the loop-prevention guard ("server is stale, don't reload again") still works.
+
 ## [0.12.44] - 2026-05-19
 - **Kiosk: daily 3am safety reload when auto-update is broken.** Belt-and-suspenders against walls getting stuck on a stale build because the version-check channel itself is broken (DNS hiccup, proxy intercepting `current_version.json`, server down). Once per day during the 3am hour the kiosk force-reloads the page — but only when no successful version-check has happened in the last hour, so healthy kiosks never see it. Last reload date persisted in `localStorage` so the post-reload run doesn't loop.
 

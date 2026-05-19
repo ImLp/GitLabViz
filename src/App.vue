@@ -50,6 +50,7 @@
       :on-reflow-graph="reflowGraph"
       :on-reset-filters="resetFilters"
       :on-show-svn-log="openSvnLog"
+      :on-enter-kiosk="enterKiosk"
     />
 
     <!-- <v-app-bar color="primary" density="compact" elevation="1">
@@ -110,7 +111,7 @@
         :error="error"
         :initial-tab="configInitialTab"
         :all-milestones="allMilestones"
-        @close="activePage = 'main'"
+        @close="activePage = configReturnTo"
         @save="handleConfigSave"
         @tab-change="configInitialTab = $event || 'gitlab'"
         @clear-data="clearData"
@@ -325,6 +326,12 @@ const svnUrl = computed({
 
 const activePage = ref('main') // 'main' | 'config' | 'chattools' | 'kiosk'
 const configInitialTab = ref('gitlab')
+// Remember where the user came from so the config back-arrow returns there
+// (e.g. kiosk → config → back goes to kiosk, not main).
+const configReturnTo = ref('main')
+watch(activePage, (next, prev) => {
+  if (next === 'config' && prev && prev !== 'config') configReturnTo.value = prev
+})
 const kioskMode = ref('today')
 // When the user opens the kiosk from inside the app (hotkey / Open-kiosk button),
 // reset to the first enabled mode rather than picking up wherever the cycle had
@@ -1010,7 +1017,7 @@ const hotkeyHandlers = {
   collapseAllSections: () => setAllSections(false),
   resetFilters,
   toggleTheme: () => {
-    const order = ['light', 'dark', 'system']
+    const order = ['light', 'dark', 'system', 'schedule']
     const i = order.indexOf(settings.uiState.ui.theme)
     settings.uiState.ui.theme = order[(i + 1 + order.length) % order.length]
   },
