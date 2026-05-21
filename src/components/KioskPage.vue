@@ -1537,7 +1537,9 @@ const handleWindowKey = (e) => {
   if (e.key === 'Escape')         { e.preventDefault(); emit('close'); return }
   if (e.key === 'ArrowRight')     { e.preventDefault(); nextMode(); return }
   if (e.key === 'ArrowLeft')      { e.preventDefault(); prevMode(); return }
-  if (e.key === ' ')              { e.preventDefault(); togglePause(); return }
+  if (e.key === ' ' || e.key === 'MediaPlayPause' || e.key === 'MediaPlay' || e.key === 'MediaPause') {
+    e.preventDefault(); togglePause(); return
+  }
   if (toggleKioskCombo.value && getEventCombo(e) === toggleKioskCombo.value) {
     e.preventDefault(); emit('close')
   }
