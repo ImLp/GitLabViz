@@ -3,6 +3,7 @@ import {
   fetchLatestBundle,
   selectFlakeLeaderboard,
   selectHeatmapMatrix,
+  classifyFromCounts,
   FlakeNotConfiguredError,
   FlakeBundleNotFoundError,
   UnsupportedSchemaVersionError,
@@ -95,7 +96,9 @@ describe('selectFlakeLeaderboard', () => {
   })
 
   it('orders rows by ascending pass_rate', () => {
-    const rows = selectFlakeLeaderboard(sampleBundle, { limit: 10 })
+    // excludeStable:false here because this assertion specifically checks that
+    // a known-stable test is positioned below known-flaky ones in the ordering.
+    const rows = selectFlakeLeaderboard(sampleBundle, { limit: 10, excludeStable: false })
     expect(rows.length).toBeGreaterThan(0)
     // pass_rate must be non-decreasing across the leaderboard
     for (let i = 1; i < rows.length; i++) {
@@ -132,6 +135,77 @@ describe('selectFlakeLeaderboard', () => {
 
   it('honours limit', () => {
     expect(selectFlakeLeaderboard(sampleBundle, { limit: 2 }).length).toBeLessThanOrEqual(2)
+  })
+
+  it('excludes stable tests by default and includes them when excludeStable:false', () => {
+    const withStable = selectFlakeLeaderboard(sampleBundle, { limit: 50, excludeStable: false })
+    const flakyOnly  = selectFlakeLeaderboard(sampleBundle, { limit: 50 }) // default true
+    const stableInWithStable = withStable.some(r => r.flake_classification === 'stable')
+    const stableInFlakyOnly  = flakyOnly.some(r => r.flake_classification === 'stable')
+    expect(stableInWithStable).toBe(true)
+    expect(stableInFlakyOnly).toBe(false)
+  })
+
+  it('classifies per-scope: a row stable overall can be intermittent under a facet', () => {
+    // Build a tiny synthetic bundle where one test is 5/5 in continuous and
+    // 1/2 in nightly. Overall is 6/7 (stable); under nightly it's 1/2
+    // (intermittent). The leaderboard's flake_classification must reflect the
+    // facet, not the overall.
+    const bundle = {
+      schema_version: 1,
+      runs: [
+        { run_id: 'c1', suite: 'continuous', gfx_api: 'vulkan', status: 'complete', started_at: '2026-05-20T00:00:00Z' },
+        { run_id: 'c2', suite: 'continuous', gfx_api: 'vulkan', status: 'complete', started_at: '2026-05-20T01:00:00Z' },
+        { run_id: 'c3', suite: 'continuous', gfx_api: 'vulkan', status: 'complete', started_at: '2026-05-20T02:00:00Z' },
+        { run_id: 'c4', suite: 'continuous', gfx_api: 'vulkan', status: 'complete', started_at: '2026-05-20T03:00:00Z' },
+        { run_id: 'c5', suite: 'continuous', gfx_api: 'vulkan', status: 'complete', started_at: '2026-05-20T04:00:00Z' },
+        { run_id: 'n1', suite: 'nightly',    gfx_api: 'vulkan', status: 'complete', started_at: '2026-05-20T05:00:00Z' },
+        { run_id: 'n2', suite: 'nightly',    gfx_api: 'vulkan', status: 'complete', started_at: '2026-05-20T06:00:00Z' },
+      ],
+      tests: [{
+        test_id: 'test_vehicle[a,b]', name: 'test_vehicle[a,b]', module: 'mod', suite: 'continuous',
+        overall: { flake_classification: 'stable' },
+        results_by_context: [{
+          context: 'continuous_results',
+          passing_run_ids: ['c1', 'c2', 'c3', 'c4', 'c5', 'n1'],
+          failing_run_ids: ['n2'],
+        }],
+      }],
+    }
+    const nightly = selectFlakeLeaderboard(bundle, { suite: 'nightly', excludeStable: false })
+    expect(nightly.length).toBe(1)
+    expect(nightly[0].pass_count).toBe(1)
+    expect(nightly[0].fail_count).toBe(1)
+    expect(nightly[0].flake_classification).toBe('intermittent')
+
+    // Continuous: 5/5 -> stable, excluded by default.
+    const continuousDefault = selectFlakeLeaderboard(bundle, { suite: 'continuous' })
+    expect(continuousDefault.length).toBe(0)
+  })
+})
+
+describe('classifyFromCounts', () => {
+  it('returns null when there are no runs', () => {
+    expect(classifyFromCounts(0, 0)).toBe(null)
+  })
+  it('returns broken when pass=0 and there are fails', () => {
+    expect(classifyFromCounts(0, 3)).toBe('broken')
+  })
+  it('returns stable when there are no fails', () => {
+    expect(classifyFromCounts(5, 0)).toBe('stable')
+  })
+  it('returns stable at pass_rate >= 0.95', () => {
+    expect(classifyFromCounts(19, 1)).toBe('stable')   // 95%
+    expect(classifyFromCounts(95, 5)).toBe('stable')   // 95%
+  })
+  it('returns intermittent in [0.5, 0.95)', () => {
+    expect(classifyFromCounts(1, 1)).toBe('intermittent')   // 50%
+    expect(classifyFromCounts(94, 6)).toBe('intermittent')  // 94%
+    expect(classifyFromCounts(6, 4)).toBe('intermittent')   // 60%
+  })
+  it('returns actively_flaky below 0.5', () => {
+    expect(classifyFromCounts(1, 2)).toBe('actively_flaky') // ~33%
+    expect(classifyFromCounts(1, 9)).toBe('actively_flaky') // 10%
   })
 })
 

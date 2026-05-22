@@ -120,6 +120,23 @@ const matchesFacet = (run, { suite, gfxApi, quality } = {}) => (
 )
 
 /**
+ * Mirror of bundle_flake_history.py:_flake_classification. Keep the thresholds
+ * in sync with the bundler so the per-scope label the viewer computes here
+ * agrees with the overall label the bundler computes server-side.
+ */
+export const classifyFromCounts = (pass, fail) => {
+  const p = Number(pass) || 0
+  const f = Number(fail) || 0
+  if (p <= 0 && f <= 0) return null
+  if (p <= 0) return 'broken'
+  if (f === 0) return 'stable'
+  const rate = p / (p + f)
+  if (rate >= 0.95) return 'stable'
+  if (rate >= 0.5) return 'intermittent'
+  return 'actively_flaky'
+}
+
+/**
  * Top-N tests sorted by ascending pass_rate (most-flaky first), restricted to
  * runs matching the facet filter. Tests with no runs in the filtered set are
  * dropped. Stable-pass tests sink to the bottom; ties broken by recency of
@@ -130,6 +147,7 @@ export const selectFlakeLeaderboard = (bundle, {
   gfxApi = null,
   quality = null,
   limit = 20,
+  excludeStable = true,
 } = {}) => {
   if (!bundle || !Array.isArray(bundle.tests)) return []
 
@@ -167,6 +185,11 @@ export const selectFlakeLeaderboard = (bundle, {
     }
     const total = pass + fail
     if (total === 0) continue
+    // Per-scope classification: when the user filters to e.g. suite=smoketest,
+    // the row's label should reflect that scope's pass rate, not the bundler's
+    // across-all-suites overall label.
+    const scopedClassification = classifyFromCounts(pass, fail)
+    if (excludeStable && scopedClassification === 'stable') continue
     rows.push({
       test_id: t.test_id,
       name: t.name,
@@ -177,7 +200,7 @@ export const selectFlakeLeaderboard = (bundle, {
       pass_rate: total ? Number((pass / total).toFixed(4)) : null,
       last_status: lastStatus,
       last_failure_at: lastFailureAt || null,
-      flake_classification: t.overall?.flake_classification || null,
+      flake_classification: scopedClassification,
     })
   }
 

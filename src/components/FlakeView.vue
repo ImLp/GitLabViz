@@ -63,7 +63,7 @@
     <v-switch
       v-model="showAllTests"
       density="compact" hide-details color="primary"
-      :label="showAllTests ? 'Showing all' : 'Top 100'"
+      :label="showAllTests ? 'All tests' : 'Top 100 flaky'"
       class="mr-4"
     />
   </v-toolbar>
@@ -156,6 +156,9 @@
           @click:row="onRowClick"
           class="flake-table"
         >
+          <template #item.runs="{ item }">
+            {{ item.pass_count }}/{{ item.pass_count + item.fail_count }}
+          </template>
           <template #item.pass_rate="{ value }">
             {{ value === null ? '—' : (value * 100).toFixed(1) + '%' }}
           </template>
@@ -315,7 +318,11 @@ const matchesSearch = (t) => {
 
 const leaderboard = computed(() => {
   if (!bundle.value) return []
-  const rows = selectFlakeLeaderboard(bundle.value, { ...facet.value, limit: leaderboardLimit.value })
+  const rows = selectFlakeLeaderboard(bundle.value, {
+    ...facet.value,
+    limit: leaderboardLimit.value,
+    excludeStable: !showAllTests.value,
+  })
   return rows.filter(matchesSearch)
 })
 
@@ -327,6 +334,7 @@ const heatmap = computed(() => {
 
 const leaderboardHeaders = [
   { title: 'Test', key: 'name' },
+  { title: 'Runs', key: 'runs', align: 'end', sortable: false },
   { title: 'Pass rate', key: 'pass_rate', align: 'end' },
   { title: 'Last', key: 'last_status', align: 'center' },
   { title: 'Class', key: 'flake_classification' },
